@@ -2,6 +2,9 @@ use crate::jsondata::*;
 use serde::Serialize;
 use serde_value::Value;
 use std::collections::HashMap;
+use std::env;
+use std::fs;
+use std::process::Command;
 
 pub fn export_json_instance<T: Serialize>(value: &T) -> JsonDataInstance {
     let val = serde_value::to_value(value).unwrap();
@@ -98,4 +101,22 @@ impl ExportState {
         });
         rel.tuples.push(tuple);
     }
+}
+
+pub fn open_in_browser<T: Serialize>(value: &T) {
+    // Serialize the struct to JSON
+    let json_data = serde_json::to_string_pretty(value).unwrap();
+
+    // Create a temporary file path
+    let temp_dir = env::temp_dir();
+    let temp_file_path = temp_dir.join("struct_data.json");
+
+    // Write JSON data to the temporary file
+    fs::write(&temp_file_path, json_data).expect("Failed to write JSON to temporary file");
+
+    // Open the file in the default browser
+    Command::new("open")
+        .arg(temp_file_path)
+        .spawn()
+        .expect("Failed to open browser");
 }

@@ -1,4 +1,4 @@
-use json_data_instance_export::export_json_instance;
+use json_data_instance_export::printcnd;
 
 #[derive(serde::Serialize)]
 struct Person {
@@ -21,6 +21,5 @@ fn main() {
         ],
     };
 
-    let result = export_json_instance(&c);
-    println!("{}", serde_json::to_string_pretty(&result).unwrap());
+    printcnd(&c, "");
 }
