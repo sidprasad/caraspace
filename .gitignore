@@ -1,0 +1,17 @@
+# Generated files
+/target/
+**/*.rs.bk
+
+# Cargo files
+Cargo.lock
+
+# IDE and editor files
+/.idea/
+/.vscode/
+/*.swp
+*.swo
+*.swn
+
+# OS-specific files
+.DS_Store
+Thumbs.db
