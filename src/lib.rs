@@ -7,6 +7,8 @@ use serde::Serialize;
 use std::env;
 use std::fs;
 use std::process::Command;
+use tera::{Context, Tera};
+use warp::Filter;
 
 /// Prints the given JSON and opens it in the browser.
 ///
@@ -28,23 +30,35 @@ use std::process::Command;
 /// ```
 pub fn printcnd<T: Serialize>(value: &T, _extra: &str) {
     // Serialize the struct to JSON
-    let json_data = serde_json::to_string_pretty(value).unwrap();
+    let json_instance = export_json_instance(value);
+    let json_data = serde_json::to_string_pretty(&json_instance).unwrap();
 
-    // Create a temporary file path
+    // Load the HTML template
+    let tera = Tera::new("templates/*.html").expect("Failed to load templates");
+    let mut context = Context::new();
+    context.insert("json_data", &json_data);
+
+    // Render the template
+    let rendered_html = tera.render("template.html", &context).expect("Failed to render template");
+
+    // Save the rendered HTML to a temporary file
     let temp_dir = env::temp_dir();
-    let temp_file_path = temp_dir.join("struct_data.json");
+    let temp_file_path = temp_dir.join("struct_data.html");
+    fs::write(&temp_file_path, rendered_html).expect("Failed to write HTML to file");
 
-    // Write JSON data to the temporary file
-    fs::write(&temp_file_path, json_data).expect("Failed to write JSON to temporary file");
+    // Serve the specific file using a lightweight web server
+    let route = warp::fs::file(temp_file_path.clone());
+    let server = warp::serve(route);
 
-    // Debug: Print the file path
-    println!("Opening file at: {:?}", temp_file_path);
+    // Start the server and open the URL in the browser
+    let port = 3030;
+    let url = format!("http://localhost:{}/struct_data.html", port);
+    println!("Serving at: {}", url);
 
-    // Open the file in the default browser
     Command::new("open")
-        .arg(temp_file_path)
+        .arg(url)
         .spawn()
         .expect("Failed to open browser");
 
-    // Currently, `extra` is unused, but it can be extended for future functionality.
+    tokio::runtime::Runtime::new().unwrap().block_on(server.run(([127, 0, 0, 1], port)));
 }
