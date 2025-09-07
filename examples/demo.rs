@@ -1,4 +1,4 @@
-use json_data_instance_export::printcnd;
+use rust_viz::visualize;
 
 #[derive(serde::Serialize)]
 struct Person {
@@ -21,5 +21,5 @@ fn main() {
         ],
     };
 
-    printcnd(&c, "");
+    visualize(&c, "");
 }
