@@ -1,34 +1,30 @@
-use rust_viz::{diagram_with_annotations, cnd_annotations::*};
+use json_data_instance_export_macros::attribute;
+use json_data_instance_export::diagram;
+use serde::Serialize;
 
-#[derive(serde::Serialize)]
+#[derive(Serialize)]
+#[attribute(field = "name")]
 struct Company {
     name: String,
     employees: Vec<Person>,
 }
 
-#[derive(serde::Serialize)]
+#[derive(Serialize)]
+#[attribute(field = "name")]
 struct Person {
     name: String,
     age: u32,
 }
 
-impl HasCndDecorators for Company {
-    fn decorators() -> CndDecorators {
-        CndDecoratorsBuilder::new()
-            .attribute("name", None)
-            .build()
-    }
-}
-
 fn main() {
-    let c = Company {
-        name: "Acme Corp".into(),
+    let company = Company {
+        name: "Acme Corp".to_string(),
         employees: vec![
-            Person { name: "Alice".into(), age: 30 },
-            Person { name: "Bob".into(), age: 25 },
+            Person { name: "Alice".to_string(), age: 30 },
+            Person { name: "Bob".to_string(), age: 25 },
         ],
     };
 
-    // Uses CnD annotations from the HasCndDecorators trait
-    diagram_with_annotations(&c);
+    // Much more Rust-like functional style!
+    diagram(&company);
 }
