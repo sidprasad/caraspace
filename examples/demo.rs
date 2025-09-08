@@ -1,5 +1,4 @@
-use json_data_instance_export_macros::attribute;
-use json_data_instance_export::diagram;
+use json_data_instance_export::{diagram, attribute};
 use serde::Serialize;
 
 #[derive(Serialize)]
