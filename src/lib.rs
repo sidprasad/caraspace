@@ -7,7 +7,7 @@ use std::env;
 use std::fs;
 use std::process::Command;
 
-/// Prints the given JSON data and opens it in the browser as a visualization.
+/// Creates a diagram of the given data structure and opens it in the browser.
 ///
 /// This function serializes the given struct to JSON, embeds it in an HTML template,
 /// writes it to a temporary file, and opens it in the default browser.
@@ -18,7 +18,7 @@ use std::process::Command;
 ///
 /// # Example
 /// ```
-/// use rust_viz::visualize;
+/// use rust_viz::diagram;
 /// use serde::Serialize;
 ///
 /// #[derive(Serialize)]
@@ -43,9 +43,9 @@ use std::process::Command;
 ///       - color: gray
 ///       - label: parent.name
 /// "#;
-/// visualize(&my_struct, cnd_spec);
+/// diagram(&my_struct, cnd_spec);
 /// ```
-pub fn visualize<T: Serialize>(value: &T, cnd_spec: &str) {
+pub fn diagram<T: Serialize>(value: &T, cnd_spec: &str) {
     // Export the struct to our custom JSON format with type information
     let json_instance = export_json_instance(value);
     let json_data = serde_json::to_string_pretty(&json_instance).unwrap();
@@ -76,12 +76,4 @@ pub fn visualize<T: Serialize>(value: &T, cnd_spec: &str) {
         .arg(&temp_file_path)
         .spawn()
         .expect("Failed to open browser");
-}
-
-/// Legacy alias for `visualize` function to maintain backward compatibility.
-/// 
-/// # Deprecated
-/// Use `visualize` instead. This function will be removed in a future version.
-pub fn printcnd<T: Serialize>(value: &T, cnd_spec: &str) {
-    visualize(value, cnd_spec);
 }

@@ -1,4 +1,4 @@
-use rust_viz::visualize;
+use rust_viz::diagram;
 
 #[derive(serde::Serialize)]
 struct Person {
@@ -24,5 +24,5 @@ fn main() {
     // Start with empty CnD spec - we'll build it up gradually
     let cnd_spec = "";
 
-    visualize(&c, cnd_spec);
+    diagram(&c, cnd_spec);
 }
