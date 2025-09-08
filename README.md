@@ -188,7 +188,7 @@ If you were using the old `printcnd` function, you can either:
 
 ## THoughts:
 
-Carapace: “the shell that reveals structure”
+CaraSpace: “the shell that reveals spatial structure”
 
 ## License
 
