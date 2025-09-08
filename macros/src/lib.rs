@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, DeriveInput, Attribute, Meta, Expr};
+use syn::{parse_macro_input, DeriveInput};
 
 /// Procedural macro to add spatial annotations to struct fields
 /// 
