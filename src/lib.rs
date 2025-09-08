@@ -24,7 +24,7 @@ use std::process::Command;
 ///
 /// # Example
 /// ```
-/// use rust_viz::diagram;
+/// use json_data_instance_export::diagram;
 /// use serde::Serialize;
 ///
 /// #[derive(Serialize)]
@@ -37,7 +37,8 @@ use std::process::Command;
 ///     name: "Acme Corp".to_string(),
 ///     employees: vec!["Alice".to_string(), "Bob".to_string()],
 /// };
-/// diagram(&company);
+/// // Note: diagram() would open a browser window in real use
+/// // diagram(&company);
 /// ```
 pub fn diagram<T: Serialize + cnd_annotations::HasCndDecorators>(value: &T) {
     // Collect decorators from both type-level (struct annotations) and instance-level annotations
@@ -82,7 +83,7 @@ fn collect_cnd_spec_for_diagram<T: cnd_annotations::HasCndDecorators>(value: &T)
 ///
 /// # Example
 /// ```
-/// use rust_viz::diagram_with_annotations;
+/// use json_data_instance_export::diagram_with_annotations;
 /// use serde::Serialize;
 ///
 /// #[derive(Serialize)]
@@ -95,7 +96,8 @@ fn collect_cnd_spec_for_diagram<T: cnd_annotations::HasCndDecorators>(value: &T)
 ///     name: "Acme Corp".to_string(),
 ///     employees: vec!["Alice".to_string(), "Bob".to_string()],
 /// };
-/// diagram_with_annotations(&company); // CnD spec automatically generated from annotations
+/// // Note: diagram_with_annotations() would open a browser window in real use
+/// // diagram_with_annotations(&company); // CnD spec automatically generated from annotations
 /// ```
 pub fn diagram_with_annotations<T: Serialize + cnd_annotations::HasCndDecorators>(value: &T) {
     // Extract CnD spec from spatial annotations
@@ -148,7 +150,7 @@ pub fn diagram_impl<T: Serialize>(value: &T, cnd_spec: &str) {
 ///
 /// # Example
 /// ```
-/// use rust_viz::diagram_with_spec;
+/// use json_data_instance_export::diagram_with_spec;
 /// use serde::Serialize;
 ///
 /// #[derive(Serialize)]
@@ -167,7 +169,8 @@ pub fn diagram_impl<T: Serialize>(value: &T, cnd_spec: &str) {
 ///       - color: lightblue
 ///       - label: this.label
 /// "#;
-/// diagram_with_spec(&my_struct, cnd_spec);
+/// // Note: diagram_with_spec() would open a browser window in real use
+/// // diagram_with_spec(&my_struct, cnd_spec);
 /// ```
 pub fn diagram_with_spec<T: Serialize>(value: &T, cnd_spec: &str) {
     // Export the struct to our custom JSON format with type information
