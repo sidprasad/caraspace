@@ -23,19 +23,20 @@ rust-viz = "0.1.0"
 ### Basic Visualization
 
 ```rust
-use rust_viz::diagram;
+use rust_viz::{diagram, attribute};
 use serde::Serialize;
+
+#[derive(Serialize)]
+#[attribute(field = "name")]
+struct Company {
+    name: String,
+    employees: Vec<Person>,
+}
 
 #[derive(Serialize)]
 struct Person {
     name: String,
     age: u32,
-}
-
-#[derive(Serialize)]
-struct Company {
-    name: String,
-    employees: Vec<Person>,
 }
 
 fn main() {
@@ -47,8 +48,9 @@ fn main() {
         ],
     };
 
-    // This will generate an HTML file and open it in your default browser
-    diagram(&company, "");
+    // Spatial annotations are automatically extracted from procedural macros
+    // and used to generate the CnD specification for visualization
+    company.diagram();
 }
 ```
 

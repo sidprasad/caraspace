@@ -15,6 +15,7 @@ pub use runtime::{
     SpytialDecorators, Constraint, Directive, HasSpytialDecorators,
     annotate_instance, collect_decorators_for_instance, to_yaml, 
     to_yaml_for_type, to_yaml_for_instance, Annotation,
+    register_type_decorators, get_type_decorators,
     // Builder types for creating annotations
     AnnotationBuilder, SpytialDecoratorsBuilder,
 };

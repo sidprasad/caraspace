@@ -4,7 +4,7 @@ use rust_viz::spytial_annotations::{to_yaml_for_type, to_yaml_for_instance, anno
 /// Example struct demonstrating the attribute decorator
 /// Similar to Python: @attribute(field="id")
 #[attribute(field = "id")]
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize)]
 struct Node {
     id: i32,
     v: Option<String>,  // None for constants; otherwise variable name
@@ -20,7 +20,7 @@ impl Node {
 
 /// Example struct with orientation annotation
 #[orientation(field = "children", directions = ["vertical", "stack"])]
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize)]
 struct Person {
     name: String,
     age: u32,
@@ -29,7 +29,7 @@ struct Person {
 
 /// Example struct with atom color annotation
 #[atom_color(selector = "name", value = "lightgreen")]
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize)]
 struct ColoredPerson {
     name: String,
     age: u32,
@@ -37,14 +37,14 @@ struct ColoredPerson {
 
 /// Example struct with size annotation
 #[size(selector = "self", width = 120, height = 60)]
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize)]
 struct SizedObject {
     value: String,
 }
 
 /// Example struct with cyclic layout
 #[cyclic(selector = "self", direction = "clockwise")]
-#[derive(Debug)] 
+#[derive(Debug, serde::Serialize)] 
 struct CircularNode {
     value: String,
     connections: Vec<CircularNode>,
@@ -52,7 +52,7 @@ struct CircularNode {
 
 /// Example struct with flag annotation
 #[flag(value = "special_node")]
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize)]
 struct FlaggedNode {
     data: String,
 }
@@ -62,7 +62,7 @@ struct FlaggedNode {
     attribute(field = "id"),
     orientation(field = "children", directions = ["horizontal"])
 )]
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize)]
 struct CombinedNode {
     id: i32,
     children: Vec<CombinedNode>,

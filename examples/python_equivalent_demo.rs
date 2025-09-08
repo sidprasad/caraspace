@@ -14,7 +14,7 @@ use rust_viz::spytial_annotations::{to_yaml_for_type, to_yaml_for_instance};
 ///         return self.v is None
 /// ```
 #[attribute(field = "id")]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 struct Node {
     id: i32,                       // stable integer id (for debugging / refs)
     v: Option<String>,             // None for constants; otherwise variable name  

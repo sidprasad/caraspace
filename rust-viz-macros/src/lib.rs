@@ -220,6 +220,15 @@ fn spatial_annotation_impl(annotation_type: &str, args: TokenStream, input: Toke
                     .build()
             }
         }
+
+        // Override the diagram function for this specific type
+        impl #struct_name {
+            /// Generate a diagram with spatial annotations for this type
+            pub fn diagram(&self) where Self: serde::Serialize {
+                let cnd_spec = rust_viz::spytial_annotations::to_yaml_for_instance(self).unwrap_or_default();
+                rust_viz::diagram_impl(self, &cnd_spec);
+            }
+        }
     };
 
     TokenStream::from(expanded)

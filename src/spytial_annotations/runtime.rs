@@ -206,8 +206,11 @@ pub struct FlagDirective {
 }
 
 /// Trait implemented by structs with spytial decorators
+/// All types have a default implementation that returns empty decorators
 pub trait HasSpytialDecorators {
-    fn decorators() -> SpytialDecorators;
+    fn decorators() -> SpytialDecorators {
+        SpytialDecorators::default()
+    }
 }
 
 /// Global registry for instance-level annotations
@@ -216,6 +219,22 @@ static INSTANCE_REGISTRY: Lazy<Mutex<HashMap<usize, SpytialDecorators>>> =
 
 /// Counter for generating unique instance IDs
 static INSTANCE_ID_COUNTER: Lazy<Mutex<usize>> = Lazy::new(|| Mutex::new(0));
+
+/// Global registry for type-level decorators keyed by type name
+static TYPE_REGISTRY: Lazy<Mutex<HashMap<String, SpytialDecorators>>> = 
+    Lazy::new(|| Mutex::new(HashMap::new()));
+
+/// Register spatial decorators for a type (used by procedural macros)
+pub fn register_type_decorators(type_name: &str, decorators: SpytialDecorators) {
+    let mut registry = TYPE_REGISTRY.lock().unwrap();
+    registry.insert(type_name.to_string(), decorators);
+}
+
+/// Get spatial decorators for a type by name
+pub fn get_type_decorators(type_name: &str) -> Option<SpytialDecorators> {
+    let registry = TYPE_REGISTRY.lock().unwrap();
+    registry.get(type_name).cloned()
+}
 
 /// Annotation to apply to an instance at runtime
 #[derive(Debug, Clone)]

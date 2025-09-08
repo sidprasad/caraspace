@@ -1,15 +1,16 @@
-use rust_viz::diagram;
+use rust_viz::attribute;
+
+#[derive(serde::Serialize)]
+#[attribute(field = "name")]
+struct Company {
+    name: String,
+    employees: Vec<Person>,
+}
 
 #[derive(serde::Serialize)]
 struct Person {
     name: String,
     age: u32,
-}
-
-#[derive(serde::Serialize)]
-struct Company {
-    name: String,
-    employees: Vec<Person>,
 }
 
 fn main() {
@@ -21,8 +22,7 @@ fn main() {
         ],
     };
 
-    // Start with empty CnD spec - we'll build it up gradually
-    let cnd_spec = "";
-
-    diagram(&c, cnd_spec);
+    // The procedural macro generates a diagram() method that automatically
+    // includes spatial annotations from the macro
+    c.diagram();
 }
