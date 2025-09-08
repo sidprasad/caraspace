@@ -1,7 +1,6 @@
-use rust_viz::attribute;
+use rust_viz::{diagram_with_annotations, cnd_annotations::*};
 
 #[derive(serde::Serialize)]
-#[attribute(field = "name")]
 struct Company {
     name: String,
     employees: Vec<Person>,
@@ -13,6 +12,14 @@ struct Person {
     age: u32,
 }
 
+impl HasCndDecorators for Company {
+    fn decorators() -> CndDecorators {
+        CndDecoratorsBuilder::new()
+            .attribute("name", None)
+            .build()
+    }
+}
+
 fn main() {
     let c = Company {
         name: "Acme Corp".into(),
@@ -22,7 +29,6 @@ fn main() {
         ],
     };
 
-    // The procedural macro generates a diagram() method that automatically
-    // includes spatial annotations from the macro
-    c.diagram();
+    // Uses CnD annotations from the HasCndDecorators trait
+    diagram_with_annotations(&c);
 }

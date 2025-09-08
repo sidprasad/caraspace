@@ -1,11 +1,8 @@
 pub mod jsondata;
 pub mod export;
-pub mod spytial_annotations;
+pub mod cnd_annotations;
 
 pub use export::export_json_instance;
-
-// Re-export the procedural macros
-pub use rust_viz_macros::*;
 use serde::Serialize;
 use std::env;
 use std::fs;
@@ -26,7 +23,6 @@ use std::process::Command;
 /// use serde::Serialize;
 ///
 /// #[derive(Serialize)]
-/// #[attribute(field = "name")]
 /// struct Company {
 ///     name: String,
 ///     employees: Vec<String>,
@@ -36,16 +32,15 @@ use std::process::Command;
 ///     name: "Acme Corp".to_string(),
 ///     employees: vec!["Alice".to_string(), "Bob".to_string()],
 /// };
-/// diagram(&company); // Spatial annotations automatically included
+/// diagram(&company);
 /// ```
 pub fn diagram<T: Serialize>(value: &T) {
     diagram_impl(value, "");
 }
 
-/// Creates a diagram with spatial annotations.
+/// Creates a diagram with CnD annotations.
 ///
-/// This function is automatically used when you call `diagram` on types that have
-/// spatial annotation procedural macros applied.
+/// This function is used when you have types that implement HasCndDecorators.
 ///
 /// # Arguments
 /// * `value` - The struct to serialize into JSON and visualize.
@@ -56,7 +51,6 @@ pub fn diagram<T: Serialize>(value: &T) {
 /// use serde::Serialize;
 ///
 /// #[derive(Serialize)]
-/// #[attribute(field = "name")]
 /// struct Company {
 ///     name: String,
 ///     employees: Vec<String>,
@@ -66,11 +60,11 @@ pub fn diagram<T: Serialize>(value: &T) {
 ///     name: "Acme Corp".to_string(),
 ///     employees: vec!["Alice".to_string(), "Bob".to_string()],
 /// };
-/// diagram_with_annotations(&company); // CnD spec automatically generated from spatial annotations
+/// diagram_with_annotations(&company); // CnD spec automatically generated from annotations
 /// ```
-pub fn diagram_with_annotations<T: Serialize + spytial_annotations::HasSpytialDecorators>(value: &T) {
+pub fn diagram_with_annotations<T: Serialize + cnd_annotations::HasCndDecorators>(value: &T) {
     // Extract CnD spec from spatial annotations
-    let cnd_spec = spytial_annotations::to_yaml_for_instance(value).unwrap_or_default();
+    let cnd_spec = cnd_annotations::to_yaml_for_instance(value).unwrap_or_default();
     diagram_impl(value, &cnd_spec);
 }
 
