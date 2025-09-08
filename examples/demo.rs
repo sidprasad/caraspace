@@ -21,5 +21,8 @@ fn main() {
         ],
     };
 
-    visualize(&c, "");
+    // Start with empty CnD spec - we'll build it up gradually
+    let cnd_spec = "";
+
+    visualize(&c, cnd_spec);
 }
