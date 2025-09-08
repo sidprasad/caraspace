@@ -391,11 +391,20 @@ fn parse_inferred_edge_args(attr: &Attribute) -> Option<SpatialAttribute> {
 }
 
 fn extract_string_from_tokens(tokens: &str, key: &str) -> Option<String> {
-    let pattern = format!("{} = \"", key);
-    if let Some(start) = tokens.find(&pattern) {
-        let start = start + pattern.len();
-        if let Some(end) = tokens[start..].find('"') {
-            return Some(tokens[start..start + end].to_string());
+    // Try both with and without spaces around =
+    let patterns = [
+        format!("{} = \"", key),
+        format!("{}=\"", key),
+        format!("{} =\"", key),
+        format!("{}= \"", key),
+    ];
+    
+    for pattern in &patterns {
+        if let Some(start) = tokens.find(pattern) {
+            let start = start + pattern.len();
+            if let Some(end) = tokens[start..].find('"') {
+                return Some(tokens[start..start + end].to_string());
+            }
         }
     }
     None

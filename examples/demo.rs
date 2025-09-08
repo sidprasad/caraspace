@@ -11,7 +11,7 @@ struct Company {
 
 #[derive(Serialize, CndDecorators)]
 #[attribute(field = "name")]
-
+#[flag(name="hideDisconnected")]
 struct Person {
     name: String,
     age: u32,
