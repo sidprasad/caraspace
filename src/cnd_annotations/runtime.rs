@@ -211,6 +211,19 @@ pub trait HasCndDecorators {
     fn decorators() -> CndDecorators {
         CndDecorators::default()
     }
+    
+    /// Collect decorators from this type and all nested types that also implement HasCndDecorators
+    /// Default implementation just returns self decorators
+    fn recursive_decorators() -> CndDecorators {
+        Self::decorators()
+    }
+    
+    /// Trigger registration of this type in the global registry
+    /// This should be called to ensure the type is available for serialization-time lookup
+    fn ensure_registered() {
+        // Calling decorators() triggers registration in the macro-generated code
+        let _ = Self::decorators();
+    }
 }
 
 /// Global registry for instance-level annotations
@@ -322,6 +335,18 @@ pub fn collect_decorators_for_instance<T: HasCndDecorators>(instance: &T) -> Cnd
     combined
 }
 
+/// Collect only instance-level decorators (without type decorators)
+pub fn collect_instance_only_decorators<T>(instance: &T) -> CndDecorators {
+    let instance_addr = instance as *const T as usize;
+    let registry = INSTANCE_REGISTRY.lock().unwrap();
+    
+    if let Some(instance_decorators) = registry.get(&instance_addr) {
+        instance_decorators.clone()
+    } else {
+        CndDecorators::default()
+    }
+}
+
 /// Serialize decorators to YAML string
 pub fn to_yaml(decorators: &CndDecorators) -> Result<String, serde_yaml::Error> {
     serde_yaml::to_string(decorators)
@@ -335,6 +360,31 @@ pub fn to_yaml_for_type<T: HasCndDecorators>() -> Result<String, serde_yaml::Err
 /// Helper function to get decorators for an instance as YAML
 pub fn to_yaml_for_instance<T: HasCndDecorators>(instance: &T) -> Result<String, serde_yaml::Error> {
     to_yaml(&collect_decorators_for_instance(instance))
+}
+
+/// A helper function to ensure all types in a data structure are registered
+/// Users should call this for their root data type to enable recursive decorator collection
+pub fn ensure_types_registered<T: HasCndDecorators>() {
+    T::ensure_registered();
+}
+
+/// Register a type and its common field types
+/// This is a convenience function for common patterns
+pub fn register_types<T1: HasCndDecorators>() {
+    T1::ensure_registered();
+}
+
+/// Register two types and their decorators
+pub fn register_types2<T1: HasCndDecorators, T2: HasCndDecorators>() {
+    T1::ensure_registered();
+    T2::ensure_registered();
+}
+
+/// Register three types and their decorators
+pub fn register_types3<T1: HasCndDecorators, T2: HasCndDecorators, T3: HasCndDecorators>() {
+    T1::ensure_registered();
+    T2::ensure_registered();
+    T3::ensure_registered();
 }
 
 /// Replace "self" in selector with instance-specific identifier

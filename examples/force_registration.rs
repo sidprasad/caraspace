@@ -1,5 +1,5 @@
 use json_data_instance_export::{diagram, CndDecorators};
-use json_data_instance_export::cnd_annotations::register_types2;
+use json_data_instance_export::cnd_annotations::HasCndDecorators;
 use serde::Serialize;
 
 #[derive(Serialize, CndDecorators)]
@@ -19,8 +19,9 @@ struct Person {
 }
 
 fn main() {
-    // Register all types that have CnD decorators
-    register_types2::<Company, Person>();
+    // Force registration by calling decorators for all types
+    let _ = Company::decorators();
+    let _ = Person::decorators();
     
     let company = Company {
         name: "Acme Corp".to_string(),
@@ -30,6 +31,5 @@ fn main() {
         ],
     };
 
-    // Much more Rust-like functional style!
     diagram(&company);
 }
