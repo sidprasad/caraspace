@@ -4,7 +4,7 @@ pub mod cnd_annotations;
 
 pub use export::export_json_instance;
 // Re-export the procedural macros so users only need one import
-pub use json_data_instance_export_macros::attribute;
+pub use caraspace_export_macros::attribute;
 use serde::Serialize;
 use std::env;
 use std::fs;

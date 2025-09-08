@@ -1,5 +1,5 @@
 [package]
-name = "json_data_instance_export_macros"
+name = "caraspace_export_macros"
 version = "0.1.0"
 edition = "2021"
 
