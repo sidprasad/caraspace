@@ -1,28 +1,29 @@
-use rust_viz::diagram;
+use json_data_instance_export::{diagram, attribute};
+use serde::Serialize;
 
-#[derive(serde::Serialize)]
-struct Person {
-    name: String,
-    age: u32,
-}
-
-#[derive(serde::Serialize)]
+#[derive(Serialize)]
+#[attribute(field = "name")]
 struct Company {
     name: String,
     employees: Vec<Person>,
 }
 
+#[derive(Serialize)]
+#[attribute(field = "entry")]
+struct Person {
+    name: String,
+    age: u32,
+}
+
 fn main() {
-    let c = Company {
-        name: "Acme Corp".into(),
+    let company = Company {
+        name: "Acme Corp".to_string(),
         employees: vec![
-            Person { name: "Alice".into(), age: 30 },
-            Person { name: "Bob".into(), age: 25 },
+            Person { name: "Alice".to_string(), age: 30 },
+            Person { name: "Bob".to_string(), age: 25 },
         ],
     };
 
-    // Start with empty CnD spec - we'll build it up gradually
-    let cnd_spec = "";
-
-    diagram(&c, cnd_spec);
+    // Much more Rust-like functional style!
+    diagram(&company);
 }

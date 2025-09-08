@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🦀 Rust Data Visualization</title>
+    <title>Carapace</title>
     
     <script src="https://d3js.org/d3.v4.min.js"></script>
 
@@ -183,6 +183,7 @@
                 const layoutInstance = new CndCore.LayoutInstance(layoutSpec, sgqEvaluator, 0, true);
                 const layoutResult = layoutInstance.generateLayout(dataInstance, {});
                 console.log('Layout generated');
+                window.evaluator = sgqEvaluator; // Expose evaluator for debugging
 
                 // Check for layout errors
                 if (layoutResult.error) {

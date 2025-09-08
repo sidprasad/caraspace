@@ -19,3 +19,5 @@ test_output.html
 # OS-specific files
 .DS_Store
 Thumbs.db
+
+macros/target/debug
