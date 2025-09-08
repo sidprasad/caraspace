@@ -92,6 +92,11 @@ fn collect_cnd_spec_for_diagram<T: cnd_annotations::HasCndDecorators + Serialize
     cnd_spec
 }
 
+/// Test helper function to collect CnD spec without opening browser
+pub fn collect_cnd_spec_for_test<T: cnd_annotations::HasCndDecorators + Serialize>(value: &T) -> String {
+    collect_cnd_spec_for_diagram(value)
+}
+
 /// Creates a diagram with CnD annotations.
 ///
 /// This function is used when you have types that implement HasCndDecorators.
