@@ -90,3 +90,62 @@ fn test_struct_vs_map() {
     
     println!("✅ Struct vs Map test passed!");
 }
+
+#[test]
+fn test_comprehensive_serialization_fixes() {
+    // Test a complex structure that demonstrates both fixes
+    #[derive(serde::Serialize)]
+    struct ComplexData {
+        numbers: Vec<i32>,
+        items: Vec<String>,
+        metadata: std::collections::HashMap<String, String>,
+    }
+    
+    let mut metadata = std::collections::HashMap::new();
+    metadata.insert("version".to_string(), "1.0".to_string());
+    metadata.insert("author".to_string(), "test".to_string());
+    
+    let complex_data = ComplexData {
+        numbers: vec![10, 20, 30],
+        items: vec!["first".to_string(), "second".to_string()],
+        metadata,
+    };
+    
+    let json_instance = export_json_instance(&complex_data);
+    
+    // Verify the root is treated as a struct (has valid field names)
+    let root_struct = json_instance.atoms.iter()
+        .find(|atom| atom.label == "struct")
+        .expect("Should have root struct");
+    assert_eq!(root_struct.r#type, "struct");
+    
+    // Verify we have field relations for the struct
+    let field_relation = json_instance.relations.iter()
+        .find(|r| r.name == "field")
+        .expect("Should have field relations");
+    assert_eq!(field_relation.types, vec!["struct", "atom", "atom"]);
+    
+    // Verify lists have positional information
+    let items_relation = json_instance.relations.iter()
+        .find(|r| r.name == "items")
+        .expect("Should have items relations with positioning");
+    assert_eq!(items_relation.types, vec!["list", "int", "atom"]);
+    
+    // Verify we have index atoms for positioning
+    let index_atoms: Vec<_> = json_instance.atoms.iter()
+        .filter(|atom| atom.r#type == "int" && 
+                atom.label.chars().all(|c| c.is_ascii_digit()))
+        .collect();
+    assert!(!index_atoms.is_empty(), "Should have index atoms for list positioning");
+    
+    // Verify nested HashMap is also treated as struct (has valid field names)
+    let struct_atoms: Vec<_> = json_instance.atoms.iter()
+        .filter(|atom| atom.r#type == "struct")
+        .collect();
+    assert_eq!(struct_atoms.len(), 2, "Should have root struct and nested struct");
+    
+    println!("✅ Comprehensive serialization fixes test passed!");
+    println!("   - Root struct properly detected");
+    println!("   - List positioning preserved with ternary relations"); 
+    println!("   - Nested struct/map heuristics working");
+}
