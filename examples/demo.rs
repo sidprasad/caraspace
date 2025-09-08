@@ -9,7 +9,7 @@ struct Company {
 }
 
 #[derive(Serialize)]
-#[attribute(field = "name")]
+#[attribute(field = "entry")]
 struct Person {
     name: String,
     age: u32,
