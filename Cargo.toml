@@ -14,6 +14,10 @@ serde_yaml = "0.9"
 serde-value = "0.7"
 tera = "1.17.0"
 once_cell = "1.0"
+proc-macro2 = "1.0"
+quote = "1.0"
+syn = { version = "2.0", features = ["full", "extra-traits"] }
+rust-viz-macros = { path = "rust-viz-macros" }
 
 [dev-dependencies]
 trybuild = "1.0"

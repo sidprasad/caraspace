@@ -3,6 +3,9 @@ pub mod export;
 pub mod spytial_annotations;
 
 pub use export::export_json_instance;
+
+// Re-export the procedural macros
+pub use rust_viz_macros::*;
 use serde::Serialize;
 use std::env;
 use std::fs;
