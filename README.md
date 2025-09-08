@@ -9,6 +9,7 @@ A lightweight Rust crate for data visualization using Serde serialization and Cn
 - **No CORS Issues**: Generated HTML files can be opened locally without a web server
 - **Standard Rust Patterns**: Follows Rust naming conventions and idiomatic design
 - **Spatial Annotations**: Runtime annotation system equivalent to Python sPyTial decorators
+- **Procedural Macros**: Direct struct decoration syntax identical to Python decorators
 
 ## Usage
 
@@ -54,6 +55,76 @@ fn main() {
 ### Spatial Annotations
 
 The spatial annotations system provides a runtime annotation system equivalent to Python sPyTial decorators, allowing you to add visualization constraints and directives to your data structures.
+
+#### Procedural Macro Approach (Recommended)
+
+The most ergonomic way to use spatial annotations is through procedural macros, which provide syntax identical to Python decorators:
+
+```rust
+use rust_viz::{attribute, orientation, atom_color};
+use rust_viz::spytial_annotations::{to_yaml_for_type, to_yaml_for_instance};
+
+// Direct equivalent to Python: @attribute(field="id")
+#[attribute(field = "id")]
+#[derive(Debug)]
+struct Node {
+    id: i32,                       // stable integer id (for debugging / refs)
+    v: Option<String>,             // None for constants; otherwise variable name  
+    lo: Option<Box<Node>>,         // 0-edge (None for constants)
+    hi: Option<Box<Node>>,         // 1-edge (None for constants)
+}
+
+impl Node {
+    fn is_const(&self) -> bool {
+        self.v.is_none()
+    }
+}
+
+// Other annotation examples
+#[orientation(field = "children", directions = ["vertical", "stack"])]
+#[derive(Debug)]
+struct Person {
+    name: String,
+    children: Vec<Person>,
+}
+
+#[atom_color(selector = "name", value = "lightgreen")]
+#[derive(Debug)]
+struct ColoredObject {
+    name: String,
+}
+
+fn main() {
+    // Automatically generates spatial annotations
+    let yaml = to_yaml_for_type::<Node>().unwrap();
+    println!("Generated annotations:\n{}", yaml);
+    // Output:
+    // constraints: []
+    // directives:
+    // - attribute:
+    //     field: id
+}
+```
+
+#### Available Procedural Macros
+
+- `#[attribute(field = "field_name")]`
+- `#[orientation(field = "field_name", directions = ["dir1", "dir2"])]`
+- `#[atom_color(selector = "selector", value = "color")]`
+- `#[size(selector = "selector", width = 100, height = 50)]`
+- `#[cyclic(selector = "selector", direction = "clockwise")]`
+- `#[flag(value = "flag_name")]`
+- `#[hide_field(field = "field_name")]`
+- `#[hide_atom(selector = "selector")]`
+- `#[icon(selector = "selector", value = "icon_path")]`
+- `#[edge_color(selector = "selector", value = "color")]`
+- `#[projection(value = "projection_name")]`
+- `#[inferred_edge(selector = "selector", value = "target")]`
+- `#[group(field = "field_name", group_on = 0, add_to_group = 1)]`
+
+#### Builder Pattern Approach (Legacy)
+
+For more complex scenarios or when you need multiple annotations on a single struct, you can still use the builder pattern:
 
 ```rust
 use rust_viz::spytial_annotations::{
