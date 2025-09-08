@@ -3,8 +3,8 @@ pub mod export;
 pub mod cnd_annotations;
 
 pub use export::export_json_instance;
-// Re-export the procedural macros so users only need one import
-pub use caraspace_export_macros::attribute;
+// Re-export the derive macro for spatial annotations
+pub use caraspace_export_macros::CndDecorators;
 use serde::Serialize;
 use std::env;
 use std::fs;

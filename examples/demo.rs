@@ -1,15 +1,17 @@
-use json_data_instance_export::{diagram, attribute};
+use json_data_instance_export::{diagram, CndDecorators};
 use serde::Serialize;
 
-#[derive(Serialize)]
+#[derive(Serialize, CndDecorators)]
 #[attribute(field = "name")]
+#[flag(name="hideDisconnected")]
 struct Company {
     name: String,
     employees: Vec<Person>,
 }
 
-#[derive(Serialize)]
-#[attribute(field = "entry")]
+#[derive(Serialize, CndDecorators)]
+#[attribute(field = "name")]
+
 struct Person {
     name: String,
     age: u32,
