@@ -2,6 +2,9 @@ pub mod jsondata;
 pub mod export;
 pub mod cnd_annotations;
 
+#[cfg(test)]
+mod test_serialization;
+
 pub use export::export_json_instance;
 // Re-export the procedural macros so users only need one import
 pub use json_data_instance_export_macros::attribute;
