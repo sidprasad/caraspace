@@ -136,6 +136,18 @@ pub fn derive_cnd_decorators(input: TokenStream) -> TokenStream {
     let expanded = quote! {
         impl #impl_generics json_data_instance_export::cnd_annotations::HasCndDecorators for #name #ty_generics #where_clause {
             fn decorators() -> json_data_instance_export::cnd_annotations::CndDecorators {
+                // Register this type automatically when decorators() is called
+                static REGISTRATION: ::std::sync::Once = ::std::sync::Once::new();
+                REGISTRATION.call_once(|| {
+                    let decorators = json_data_instance_export::cnd_annotations::CndDecoratorsBuilder::new()
+                        #(#decorator_calls)*
+                        .build();
+                    json_data_instance_export::cnd_annotations::register_type_decorators(
+                        stringify!(#name), 
+                        decorators.clone()
+                    );
+                });
+
                 json_data_instance_export::cnd_annotations::CndDecoratorsBuilder::new()
                     #(#decorator_calls)*
                     .build()

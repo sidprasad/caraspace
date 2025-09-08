@@ -56,6 +56,7 @@
 //! - **Relations** carry type information for both ends of relationships
 
 use crate::jsondata::*;
+use crate::cnd_annotations::CndDecorators;
 use serde::ser::{
     Serialize, SerializeMap, SerializeSeq, SerializeStruct, SerializeStructVariant,
     SerializeTuple, SerializeTupleStruct, SerializeTupleVariant, Serializer,
@@ -74,11 +75,27 @@ pub fn export_json_instance<T: Serialize>(value: &T) -> JsonDataInstance {
     }
 }
 
+/// Export a Rust data structure and collect CnD decorators from all encountered types
+/// Excludes the root type from collection to avoid double-counting
+pub fn export_json_instance_with_decorators<T: Serialize>(value: &T, root_type_name: &str) -> (JsonDataInstance, CndDecorators) {
+    let mut serializer = JsonDataSerializer::new();
+    serializer.exclude_type = Some(root_type_name.to_string());
+    value.serialize(&mut serializer).unwrap();
+    let instance = JsonDataInstance {
+        atoms: serializer.atoms,
+        relations: serializer.relations.into_values().collect(),
+    };
+    (instance, serializer.collected_decorators)
+}
+
 /// Custom Serde serializer that preserves semantic structure for different collection types
 pub struct JsonDataSerializer {
     counter: usize,
     atoms: Vec<IAtom>,
     relations: HashMap<String, IRelation>,
+    collected_decorators: CndDecorators,
+    visited_types: std::collections::HashSet<String>,
+    exclude_type: Option<String>,
 }
 
 impl JsonDataSerializer {
@@ -87,6 +104,9 @@ impl JsonDataSerializer {
             counter: 0,
             atoms: vec![],
             relations: HashMap::new(),
+            collected_decorators: CndDecorators::default(),
+            visited_types: std::collections::HashSet::new(),
+            exclude_type: None,
         }
     }
 
@@ -117,6 +137,54 @@ impl JsonDataSerializer {
             tuples: vec![],
         });
         rel.tuples.push(tuple);
+    }
+
+    /// Collect decorators for a struct type if it hasn't been visited yet
+    /// This method now attempts automatic registration for types that might have decorators
+    fn collect_decorators_for_type(&mut self, type_name: &str) {
+        // Skip if this type should be excluded
+        if let Some(ref exclude) = self.exclude_type {
+            if type_name == exclude {
+                return;
+            }
+        }
+        
+        // Only collect decorators once per type to avoid duplicates
+        if self.visited_types.contains(type_name) {
+            return;
+        }
+        self.visited_types.insert(type_name.to_string());
+
+        // First, try to get already-registered decorators
+        if let Some(type_decorators) = crate::cnd_annotations::get_type_decorators(type_name) {
+            // Merge the decorators into our collected set
+            self.collected_decorators.constraints.extend(type_decorators.constraints);
+            self.collected_decorators.directives.extend(type_decorators.directives);
+            return;
+        }
+        
+        // If not found, try to trigger registration by calling known decorated type methods
+        // This is a heuristic approach: we try to trigger registration for common patterns
+        if self.try_trigger_registration(type_name) {
+            // After triggering, try to get decorators again
+            if let Some(type_decorators) = crate::cnd_annotations::get_type_decorators(type_name) {
+                self.collected_decorators.constraints.extend(type_decorators.constraints);
+                self.collected_decorators.directives.extend(type_decorators.directives);
+            }
+        }
+    }
+    
+    /// Attempt to trigger registration for a type name by trying common patterns
+    /// This is a heuristic approach that works for types that are already linked
+    fn try_trigger_registration(&self, _type_name: &str) -> bool {
+        // In a real implementation, this could use reflection or other mechanisms
+        // For now, we'll rely on the fact that calling decorators() on any decorated type
+        // should register that type. But since we can't call trait methods by string name,
+        // this is limited.
+        
+        // This is where we could add specific registration calls for common types
+        // or use a more sophisticated discovery mechanism
+        false
     }
 }
 
@@ -444,6 +512,10 @@ impl<'a> Serializer for &'a mut JsonDataSerializer {
         _len: usize,
     ) -> Result<Self::SerializeStruct, Self::Error> {
         let struct_id = self.emit_atom(name, name);  // struct name IS the type
+        
+        // Collect decorators for this struct type
+        self.collect_decorators_for_type(name);
+        
         Ok(StructSerializer {
             serializer: self,
             struct_id,

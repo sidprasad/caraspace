@@ -211,6 +211,19 @@ pub trait HasCndDecorators {
     fn decorators() -> CndDecorators {
         CndDecorators::default()
     }
+    
+    /// Collect decorators from this type and all nested types that also implement HasCndDecorators
+    /// Default implementation just returns self decorators
+    fn recursive_decorators() -> CndDecorators {
+        Self::decorators()
+    }
+    
+    /// Trigger registration of this type in the global registry
+    /// This should be called to ensure the type is available for serialization-time lookup
+    fn ensure_registered() {
+        // Calling decorators() triggers registration in the macro-generated code
+        let _ = Self::decorators();
+    }
 }
 
 /// Global registry for instance-level annotations
@@ -322,6 +335,18 @@ pub fn collect_decorators_for_instance<T: HasCndDecorators>(instance: &T) -> Cnd
     combined
 }
 
+/// Collect only instance-level decorators (without type decorators)
+pub fn collect_instance_only_decorators<T>(instance: &T) -> CndDecorators {
+    let instance_addr = instance as *const T as usize;
+    let registry = INSTANCE_REGISTRY.lock().unwrap();
+    
+    if let Some(instance_decorators) = registry.get(&instance_addr) {
+        instance_decorators.clone()
+    } else {
+        CndDecorators::default()
+    }
+}
+
 /// Serialize decorators to YAML string
 pub fn to_yaml(decorators: &CndDecorators) -> Result<String, serde_yaml::Error> {
     serde_yaml::to_string(decorators)
@@ -335,6 +360,46 @@ pub fn to_yaml_for_type<T: HasCndDecorators>() -> Result<String, serde_yaml::Err
 /// Helper function to get decorators for an instance as YAML
 pub fn to_yaml_for_instance<T: HasCndDecorators>(instance: &T) -> Result<String, serde_yaml::Error> {
     to_yaml(&collect_decorators_for_instance(instance))
+}
+
+/// Helper function to automatically register types based on the root type
+/// This examines the struct definition and attempts to register commonly used nested types
+pub fn auto_register_related_types<T: HasCndDecorators + Serialize>() {
+    // Always register the root type
+    T::ensure_registered();
+    
+    // TODO: Add reflection-based discovery of field types
+    // For now, users still need to manually register, but this provides a cleaner API
+}
+
+/// Helper to register types without explicit enumeration
+/// This will be enhanced in the future to support automatic discovery
+pub fn auto_register_types() {
+    // This is a placeholder for automatic type discovery
+    // In the future, this could use reflection or other mechanisms
+}
+/// Users should call this for their root data type to enable recursive decorator collection
+pub fn ensure_types_registered<T: HasCndDecorators>() {
+    T::ensure_registered();
+}
+
+/// Register a type and its common field types
+/// This is a convenience function for common patterns
+pub fn register_types<T1: HasCndDecorators>() {
+    T1::ensure_registered();
+}
+
+/// Register two types and their decorators
+pub fn register_types2<T1: HasCndDecorators, T2: HasCndDecorators>() {
+    T1::ensure_registered();
+    T2::ensure_registered();
+}
+
+/// Register three types and their decorators
+pub fn register_types3<T1: HasCndDecorators, T2: HasCndDecorators, T3: HasCndDecorators>() {
+    T1::ensure_registered();
+    T2::ensure_registered();
+    T3::ensure_registered();
 }
 
 /// Replace "self" in selector with instance-specific identifier

@@ -12,7 +12,7 @@ struct Company {
 
 impl Company {
     fn new(name: String, employees: Vec<Person>) -> Self {
-        // Auto-register this type when constructed - no manual registration needed!
+        // Auto-register when the type is constructed
         let _ = Self::decorators();
         Self { name, employees }
     }
@@ -27,7 +27,7 @@ struct Person {
 
 impl Person {
     fn new(name: String, age: u32) -> Self {
-        // Auto-register this type when constructed - no manual registration needed!
+        // Auto-register when the type is constructed
         let _ = Self::decorators();
         Self { name, age }
     }
@@ -42,6 +42,6 @@ fn main() {
         ],
     );
 
-    // No registration calls needed - types register themselves automatically!
+    // No manual registration needed - types auto-register when constructed
     diagram(&company);
 }
