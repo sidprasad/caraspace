@@ -183,6 +183,7 @@
                 const layoutInstance = new CndCore.LayoutInstance(layoutSpec, sgqEvaluator, 0, true);
                 const layoutResult = layoutInstance.generateLayout(dataInstance, {});
                 console.log('Layout generated');
+                window.evaluator = sgqEvaluator; // Expose evaluator for debugging
 
                 // Check for layout errors
                 if (layoutResult.error) {
