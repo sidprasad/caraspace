@@ -1,5 +1,6 @@
 pub mod jsondata;
 pub mod export;
+pub mod spytial_annotations;
 
 pub use export::export_json_instance;
 use serde::Serialize;
