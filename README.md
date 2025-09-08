@@ -8,7 +8,7 @@ A lightweight Rust crate for data visualization using Serde serialization and Cn
 - **Serde Integration**: Automatically visualize any serializable Rust data structure
 - **No CORS Issues**: Generated HTML files can be opened locally without a web server
 - **Standard Rust Patterns**: Follows Rust naming conventions and idiomatic design
-- **Spytial Annotations**: Runtime annotation system equivalent to Python sPyTial decorators
+- **Spatial Annotations**: Runtime annotation system equivalent to Python sPyTial decorators
 
 ## Usage
 
@@ -51,9 +51,9 @@ fn main() {
 }
 ```
 
-### Spytial Annotations
+### Spatial Annotations
 
-The spytial annotations system provides a runtime annotation system equivalent to Python sPyTial decorators, allowing you to add visualization constraints and directives to your data structures.
+The spatial annotations system provides a runtime annotation system equivalent to Python sPyTial decorators, allowing you to add visualization constraints and directives to your data structures.
 
 ```rust
 use rust_viz::spytial_annotations::{
