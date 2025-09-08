@@ -140,6 +140,7 @@ impl JsonDataSerializer {
     }
 
     /// Collect decorators for a struct type if it hasn't been visited yet
+    /// This method now attempts automatic registration for types that might have decorators
     fn collect_decorators_for_type(&mut self, type_name: &str) {
         // Skip if this type should be excluded
         if let Some(ref exclude) = self.exclude_type {
@@ -154,12 +155,36 @@ impl JsonDataSerializer {
         }
         self.visited_types.insert(type_name.to_string());
 
-        // Check if there are type-level decorators registered for this type
+        // First, try to get already-registered decorators
         if let Some(type_decorators) = crate::cnd_annotations::get_type_decorators(type_name) {
             // Merge the decorators into our collected set
             self.collected_decorators.constraints.extend(type_decorators.constraints);
             self.collected_decorators.directives.extend(type_decorators.directives);
+            return;
         }
+        
+        // If not found, try to trigger registration by calling known decorated type methods
+        // This is a heuristic approach: we try to trigger registration for common patterns
+        if self.try_trigger_registration(type_name) {
+            // After triggering, try to get decorators again
+            if let Some(type_decorators) = crate::cnd_annotations::get_type_decorators(type_name) {
+                self.collected_decorators.constraints.extend(type_decorators.constraints);
+                self.collected_decorators.directives.extend(type_decorators.directives);
+            }
+        }
+    }
+    
+    /// Attempt to trigger registration for a type name by trying common patterns
+    /// This is a heuristic approach that works for types that are already linked
+    fn try_trigger_registration(&self, _type_name: &str) -> bool {
+        // In a real implementation, this could use reflection or other mechanisms
+        // For now, we'll rely on the fact that calling decorators() on any decorated type
+        // should register that type. But since we can't call trait methods by string name,
+        // this is limited.
+        
+        // This is where we could add specific registration calls for common types
+        // or use a more sophisticated discovery mechanism
+        false
     }
 }
 

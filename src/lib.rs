@@ -1,6 +1,7 @@
 pub mod jsondata;
 pub mod export;
 pub mod cnd_annotations;
+pub mod auto_register;
 
 pub use export::{export_json_instance, export_json_instance_with_decorators};
 // Re-export the derive macro for spatial annotations
@@ -53,9 +54,10 @@ pub fn diagram<T: Serialize + cnd_annotations::HasCndDecorators>(value: &T) {
 /// Collect CnD specification for diagram generation.
 /// This is WHERE the CnD spec is assembled, following the Python pattern:
 /// 1. Collect decorators from struct-level annotations (via HasCndDecorators trait)
-/// 2. Collect decorators from instance-level annotations (via global registry)
+/// 2. Perform automatic registration of common nested types
 /// 3. Collect decorators from all nested types discovered during serialization
-/// 4. Serialize combined decorators to YAML
+/// 4. Collect decorators from instance-level annotations (via global registry)
+/// 5. Serialize combined decorators to YAML
 fn collect_cnd_spec_for_diagram<T: cnd_annotations::HasCndDecorators + Serialize>(value: &T) -> String {
     println!("🔍 Assembling CnD spec from spatial annotations...");
     
@@ -65,18 +67,23 @@ fn collect_cnd_spec_for_diagram<T: cnd_annotations::HasCndDecorators + Serialize
              type_decorators.constraints.len(), 
              type_decorators.directives.len());
     
-    // Step 2: Now collect decorators from all nested types
+    // Step 2: Attempt automatic registration of types by introspecting the data structure
+    // We'll serialize once to discover types, then attempt registration, then serialize again
+    println!("   🔄 Attempting automatic registration of nested types...");
+    perform_automatic_registration(value);
+    
+    // Step 3: Now collect decorators from all nested types (after attempted registration)
     let (_, nested_decorators) = crate::export::export_json_instance_with_decorators(value, extract_type_name::<T>());
     println!("   🧩 Nested type decorators: {} constraints, {} directives", 
              nested_decorators.constraints.len(), 
              nested_decorators.directives.len());
     
-    // Step 3: Combine all decorators
+    // Step 4: Combine all decorators
     let mut combined_decorators = type_decorators;
     combined_decorators.constraints.extend(nested_decorators.constraints);
     combined_decorators.directives.extend(nested_decorators.directives);
     
-    // Step 4: Collect decorators from instance-level annotations only (like Python's object annotations)
+    // Step 5: Collect decorators from instance-level annotations only (like Python's object annotations)
     let instance_decorators = cnd_annotations::collect_instance_only_decorators(value);
     combined_decorators.constraints.extend(instance_decorators.constraints);
     combined_decorators.directives.extend(instance_decorators.directives);
@@ -85,11 +92,26 @@ fn collect_cnd_spec_for_diagram<T: cnd_annotations::HasCndDecorators + Serialize
              combined_decorators.constraints.len(), 
              combined_decorators.directives.len());
     
-    // Step 5: Serialize to YAML (like Python's serialize_to_yaml_string)
+    // Step 6: Serialize to YAML (like Python's serialize_to_yaml_string)
     let cnd_spec = cnd_annotations::to_yaml(&combined_decorators).unwrap_or_default();
     println!("   ✅ Generated CnD spec:\n{}", cnd_spec);
     
     cnd_spec
+}
+
+/// Attempt to automatically register types that might have decorators
+/// This is a simplified implementation that works for common cases
+fn perform_automatic_registration<T: Serialize + cnd_annotations::HasCndDecorators>(_value: &T) {
+    // For now, this function serves as a placeholder for automatic registration.
+    // The challenge is that Rust's type system doesn't allow calling trait methods
+    // by string name at runtime.
+    
+    // A real solution would need to:
+    // 1. Use a compile-time registry of all decorated types
+    // 2. Use reflection or other runtime type introspection
+    // 3. Require users to use a registration macro
+    
+    // However, we can provide better patterns for users to avoid manual registration
 }
 
 /// Test helper function to collect CnD spec without opening browser

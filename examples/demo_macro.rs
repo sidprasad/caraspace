@@ -10,17 +10,13 @@ struct Company {
 }
 
 #[derive(Serialize, CndDecorators)]
-#[attribute(field = "name")]
-#[flag(name="hideDisconnected")]
+#[attribute(field = "age")]
 struct Person {
     name: String,
     age: u32,
 }
 
 fn main() {
-    // Clean registration pattern - just list the types with decorators
-    register_cnd_types!(Company, Person);
-    
     let company = Company {
         name: "Acme Corp".to_string(),
         employees: vec![
@@ -28,6 +24,9 @@ fn main() {
             Person { name: "Bob".to_string(), age: 25 },
         ],
     };
+
+    // Much nicer API - just list the types that have CnD decorators
+    register_cnd_types!(Company, Person);
 
     diagram(&company);
 }

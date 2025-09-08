@@ -3,7 +3,7 @@
 //! This test validates that the system correctly collects decorators from
 //! nested types, not just the root type.
 
-use json_data_instance_export::{CndDecorators, cnd_annotations::{HasCndDecorators, register_types2}};
+use json_data_instance_export::{CndDecorators, cnd_annotations::HasCndDecorators, register_cnd_types};
 use serde::Serialize;
 
 #[derive(Serialize, CndDecorators)]
@@ -23,8 +23,8 @@ struct NestedType {
 
 #[test]
 fn test_recursive_decorator_collection() {
-    // Register both types
-    register_types2::<RootType, NestedType>();
+    // Register both types using the new cleaner API
+    register_cnd_types!(RootType, NestedType);
     
     // Create a test instance
     let root = RootType {

@@ -362,7 +362,22 @@ pub fn to_yaml_for_instance<T: HasCndDecorators>(instance: &T) -> Result<String,
     to_yaml(&collect_decorators_for_instance(instance))
 }
 
-/// A helper function to ensure all types in a data structure are registered
+/// Helper function to automatically register types based on the root type
+/// This examines the struct definition and attempts to register commonly used nested types
+pub fn auto_register_related_types<T: HasCndDecorators + Serialize>() {
+    // Always register the root type
+    T::ensure_registered();
+    
+    // TODO: Add reflection-based discovery of field types
+    // For now, users still need to manually register, but this provides a cleaner API
+}
+
+/// Helper to register types without explicit enumeration
+/// This will be enhanced in the future to support automatic discovery
+pub fn auto_register_types() {
+    // This is a placeholder for automatic type discovery
+    // In the future, this could use reflection or other mechanisms
+}
 /// Users should call this for their root data type to enable recursive decorator collection
 pub fn ensure_types_registered<T: HasCndDecorators>() {
     T::ensure_registered();

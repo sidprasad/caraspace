@@ -1,4 +1,5 @@
-use json_data_instance_export::{diagram, CndDecorators, register_cnd_types};
+use json_data_instance_export::{diagram, CndDecorators};
+use json_data_instance_export::cnd_annotations::HasCndDecorators;
 use serde::Serialize;
 
 #[derive(Serialize, CndDecorators)]
@@ -10,17 +11,13 @@ struct Company {
 }
 
 #[derive(Serialize, CndDecorators)]
-#[attribute(field = "name")]
-#[flag(name="hideDisconnected")]
+#[attribute(field = "age")]
 struct Person {
     name: String,
     age: u32,
 }
 
 fn main() {
-    // Clean registration pattern - just list the types with decorators
-    register_cnd_types!(Company, Person);
-    
     let company = Company {
         name: "Acme Corp".to_string(),
         employees: vec![
@@ -28,6 +25,11 @@ fn main() {
             Person { name: "Bob".to_string(), age: 25 },
         ],
     };
+
+    // Simple solution: call decorators() once for each type that has them
+    // This triggers registration automatically
+    let _ = Company::decorators();
+    let _ = Person::decorators();
 
     diagram(&company);
 }
