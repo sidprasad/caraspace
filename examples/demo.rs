@@ -1,4 +1,5 @@
-use json_data_instance_export::{diagram, CndDecorators, register_cnd_types};
+use json_data_instance_export::{diagram, CndDecorators};
+use json_data_instance_export::cnd_annotations::HasCndDecorators;
 use serde::Serialize;
 
 #[derive(Serialize, CndDecorators)]
@@ -9,6 +10,14 @@ struct Company {
     employees: Vec<Person>,
 }
 
+impl Company {
+    fn new(name: String, employees: Vec<Person>) -> Self {
+        // Auto-register this type when constructed - no manual registration needed!
+        let _ = Self::decorators();
+        Self { name, employees }
+    }
+}
+
 #[derive(Serialize, CndDecorators)]
 #[attribute(field = "age")]
 struct Person {
@@ -16,18 +25,23 @@ struct Person {
     age: u32,
 }
 
-fn main() {
-    // Simple one-line registration for all decorated types
-    register_cnd_types!(Company, Person);
-    
-    let company = Company {
-        name: "Acme Corp".to_string(),
-        employees: vec![
-            Person { name: "Alice".to_string(), age: 30 },
-            Person { name: "Bob".to_string(), age: 25 },
-        ],
-    };
+impl Person {
+    fn new(name: String, age: u32) -> Self {
+        // Auto-register this type when constructed - no manual registration needed!
+        let _ = Self::decorators();
+        Self { name, age }
+    }
+}
 
-    // Much more Rust-like functional style!
+fn main() {
+    let company = Company::new(
+        "Acme Corp".to_string(),
+        vec![
+            Person::new("Alice".to_string(), 30),
+            Person::new("Bob".to_string(), 25),
+        ],
+    );
+
+    // No registration calls needed - types register themselves automatically!
     diagram(&company);
 }
