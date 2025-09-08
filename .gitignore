@@ -5,6 +5,10 @@
 # Cargo files
 Cargo.lock
 
+# Generated HTML test files
+test_output.html
+*.html
+
 # IDE and editor files
 /.idea/
 /.vscode/

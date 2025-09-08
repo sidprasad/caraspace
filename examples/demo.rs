@@ -1,4 +1,4 @@
-use json_data_instance_export::printcnd;
+use rust_viz::diagram;
 
 #[derive(serde::Serialize)]
 struct Person {
@@ -21,5 +21,8 @@ fn main() {
         ],
     };
 
-    printcnd(&c, "");
+    // Start with empty CnD spec - we'll build it up gradually
+    let cnd_spec = "";
+
+    diagram(&c, cnd_spec);
 }
