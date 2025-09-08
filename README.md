@@ -185,6 +185,11 @@ If you were using the old `printcnd` function, you can either:
 - Rust 2021 Edition or later
 - A default web browser for displaying visualizations
 
+
+## THoughts:
+
+Carapace: “the shell that reveals structure”
+
 ## License
 
 Licensed under either of Apache License, Version 2.0 or MIT license at your option.
