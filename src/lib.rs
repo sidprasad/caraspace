@@ -36,8 +36,38 @@ use std::process::Command;
 /// };
 /// diagram(&company);
 /// ```
-pub fn diagram<T: Serialize>(value: &T) {
-    diagram_impl(value, "");
+pub fn diagram<T: Serialize + cnd_annotations::HasCndDecorators>(value: &T) {
+    // Collect decorators from both type-level (struct annotations) and instance-level annotations
+    // This follows the Python approach of collecting from class hierarchy and object instances
+    let cnd_spec = collect_cnd_spec_for_diagram(value);
+    diagram_impl(value, &cnd_spec);
+}
+
+/// Collect CnD specification for diagram generation.
+/// This is WHERE the CnD spec is assembled, following the Python pattern:
+/// 1. Collect decorators from struct-level annotations (via HasCndDecorators trait)
+/// 2. Collect decorators from instance-level annotations (via global registry)
+/// 3. Serialize combined decorators to YAML
+fn collect_cnd_spec_for_diagram<T: cnd_annotations::HasCndDecorators>(value: &T) -> String {
+    println!("🔍 Assembling CnD spec from spatial annotations...");
+    
+    // Step 1: Collect decorators from struct-level annotations (like Python's class hierarchy)
+    let type_decorators = T::decorators();
+    println!("   📝 Type-level decorators: {} constraints, {} directives", 
+             type_decorators.constraints.len(), 
+             type_decorators.directives.len());
+    
+    // Step 2: Collect decorators from instance-level annotations (like Python's object annotations)
+    let combined_decorators = cnd_annotations::collect_decorators_for_instance(value);
+    println!("   🔗 Combined decorators: {} constraints, {} directives", 
+             combined_decorators.constraints.len(), 
+             combined_decorators.directives.len());
+    
+    // Step 3: Serialize to YAML (like Python's serialize_to_yaml_string)
+    let cnd_spec = cnd_annotations::to_yaml(&combined_decorators).unwrap_or_default();
+    println!("   ✅ Generated CnD spec:\n{}", cnd_spec);
+    
+    cnd_spec
 }
 
 /// Creates a diagram with CnD annotations.
