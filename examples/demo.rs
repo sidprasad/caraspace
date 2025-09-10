@@ -1,7 +1,9 @@
 use json_data_instance_export::{diagram, CndDecorators};
-use json_data_instance_export::cnd_annotations::HasCndDecorators;
 use serde::Serialize;
 
+/// Company type with compile-time decorator collection.
+/// When you call `Company::decorators()`, it automatically includes
+/// decorators from nested Person types too!
 #[derive(Serialize, CndDecorators)]
 #[attribute(field = "name")]
 #[flag(name="hideDisconnected")]
@@ -10,14 +12,8 @@ struct Company {
     employees: Vec<Person>,
 }
 
-impl Company {
-    fn new(name: String, employees: Vec<Person>) -> Self {
-        // Auto-register this type when constructed - no manual registration needed!
-        let _ = Self::decorators();
-        Self { name, employees }
-    }
-}
-
+/// Person type with decorators that will be automatically
+/// included when processing any type that contains Person fields.
 #[derive(Serialize, CndDecorators)]
 #[attribute(field = "age")]
 struct Person {
@@ -25,23 +21,18 @@ struct Person {
     age: u32,
 }
 
-impl Person {
-    fn new(name: String, age: u32) -> Self {
-        // Auto-register this type when constructed - no manual registration needed!
-        let _ = Self::decorators();
-        Self { name, age }
-    }
-}
-
 fn main() {
-    let company = Company::new(
-        "Acme Corp".to_string(),
-        vec![
-            Person::new("Alice".to_string(), 30),
-            Person::new("Bob".to_string(), 25),
+    let company = Company {
+        name: "Acme Corp".to_string(),
+        employees: vec![
+            Person { name: "Alice".to_string(), age: 30 },
+            Person { name: "Bob".to_string(), age: 25 },
         ],
-    );
+    };
 
-    // No registration calls needed - types register themselves automatically!
+    
+    // This call to diagram() will automatically collect decorators from:
+    // 1. Company type (name attribute, hideDisconnected flag)
+    // 2. Person type (age attribute) - discovered automatically at compile time!
     diagram(&company);
 }
