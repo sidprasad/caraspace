@@ -561,6 +561,15 @@ impl CndDecoratorsBuilder {
         self
     }
 
+    /// Include decorators from another type that implements HasCndDecorators
+    /// This is used for compile-time decorator collection from nested types
+    pub fn include_decorators_from_type<T: HasCndDecorators>(mut self) -> Self {
+        let other_decorators = T::decorators();
+        self.constraints.extend(other_decorators.constraints);
+        self.directives.extend(other_decorators.directives);
+        self
+    }
+
     pub fn build(self) -> CndDecorators {
         CndDecorators {
             constraints: self.constraints,

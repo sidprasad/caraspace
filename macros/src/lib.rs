@@ -1,6 +1,108 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, DeriveInput, Attribute};
+use syn::{parse_macro_input, DeriveInput, Attribute, Data, Fields, Type, PathArguments, GenericArgument};
+
+/// Collect decorators from field types at compile time
+/// This walks the type tree and generates calls to collect decorators from nested types
+fn collect_field_type_decorators(data: &Data) -> Vec<proc_macro2::TokenStream> {
+    let mut field_decorators = Vec::new();
+    let mut seen_types = std::collections::HashSet::new();
+    
+    if let Data::Struct(data_struct) = data {
+        match &data_struct.fields {
+            Fields::Named(fields) => {
+                for field in &fields.named {
+                    field_decorators.extend(analyze_field_type(&field.ty, &mut seen_types));
+                }
+            }
+            Fields::Unnamed(fields) => {
+                for field in &fields.unnamed {
+                    field_decorators.extend(analyze_field_type(&field.ty, &mut seen_types));
+                }
+            }
+            Fields::Unit => {}
+        }
+    }
+    
+    field_decorators
+}
+
+/// Analyze a field type and extract decorator calls for nested types
+fn analyze_field_type(ty: &Type, seen_types: &mut std::collections::HashSet<String>) -> Vec<proc_macro2::TokenStream> {
+    match ty {
+        // Handle Vec<T>, Option<T>, Box<T>, etc.
+        Type::Path(type_path) => {
+            if let Some(segment) = type_path.path.segments.last() {
+                match segment.ident.to_string().as_str() {
+                    "Vec" | "Option" | "Box" => {
+                        // Extract the inner type T from Vec<T>, Option<T>, etc.
+                        if let PathArguments::AngleBracketed(args) = &segment.arguments {
+                            if let Some(GenericArgument::Type(inner_type)) = args.args.first() {
+                                return analyze_inner_type(inner_type, seen_types);
+                            }
+                        }
+                    }
+                    type_name => {
+                        // Check if this might be a type with decorators and we haven't seen it
+                        if is_likely_decorated_type(type_name) && !seen_types.contains(type_name) {
+                            seen_types.insert(type_name.to_string());
+                            return vec![generate_decorator_call_for_type(type_name)];
+                        }
+                    }
+                }
+            }
+        }
+        _ => {}
+    }
+    
+    Vec::new()
+}
+
+/// Analyze inner types (like T in Vec<T>)
+fn analyze_inner_type(ty: &Type, seen_types: &mut std::collections::HashSet<String>) -> Vec<proc_macro2::TokenStream> {
+    if let Type::Path(type_path) = ty {
+        if let Some(segment) = type_path.path.segments.last() {
+            let type_name = segment.ident.to_string();
+            if is_likely_decorated_type(&type_name) && !seen_types.contains(&type_name) {
+                seen_types.insert(type_name.clone());
+                return vec![generate_decorator_call_for_type(&type_name)];
+            }
+        }
+    }
+    Vec::new()
+}
+
+/// Check if a type name is likely to have CnD decorators
+/// This is a heuristic - we look for non-primitive types
+fn is_likely_decorated_type(type_name: &str) -> bool {
+    match type_name {
+        // Skip primitive types
+        "i8" | "i16" | "i32" | "i64" | "i128" |
+        "u8" | "u16" | "u32" | "u64" | "u128" |
+        "f32" | "f64" | "bool" | "char" |
+        "String" | "str" => false,
+        
+        // Skip common std types
+        "Vec" | "Option" | "Result" | "Box" | "HashMap" | "HashSet" => false,
+        
+        // Everything else might have decorators
+        _ => {
+            // Check if it starts with uppercase (typical struct naming)
+            type_name.chars().next().map_or(false, |c| c.is_uppercase())
+        }
+    }
+}
+
+/// Generate a call to collect decorators from a specific type
+fn generate_decorator_call_for_type(type_name: &str) -> proc_macro2::TokenStream {
+    let type_ident = syn::Ident::new(type_name, proc_macro2::Span::call_site());
+    
+    // Generate a call that will include decorators from this type
+    // We'll use a special method that tries to get decorators if the type implements HasCndDecorators
+    quote! {
+        .include_decorators_from_type::<#type_ident>()
+    }
+}
 
 /// Derive macro for implementing HasCndDecorators trait
 /// 
@@ -45,8 +147,98 @@ pub fn derive_cnd_decorators(input: TokenStream) -> TokenStream {
     let generics = &input.generics;
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
-    // Parse all spatial annotation attributes
+    // Parse spatial annotation attributes for this type
     let mut decorator_calls = Vec::new();
+    
+    for attr in &input.attrs {
+        match parse_spatial_attribute(attr) {
+            Some(SpatialAttribute::Attribute { field }) => {
+                decorator_calls.push(quote! {
+                    .attribute(#field, None)
+                });
+            }
+            Some(SpatialAttribute::Flag { name }) => {
+                decorator_calls.push(quote! {
+                    .flag(#name)
+                });
+            }
+            Some(SpatialAttribute::Orientation { selector, directions }) => {
+                decorator_calls.push(quote! {
+                    .orientation(#selector, vec![#(#directions),*])
+                });
+            }
+            Some(SpatialAttribute::Cyclic { selector, direction }) => {
+                decorator_calls.push(quote! {
+                    .cyclic(#selector, #direction)
+                });
+            }
+            Some(SpatialAttribute::GroupSelector { selector, name }) => {
+                decorator_calls.push(quote! {
+                    .group_selector_based(#selector, #name)
+                });
+            }
+            Some(SpatialAttribute::GroupField { field, group_on, add_to_group }) => {
+                decorator_calls.push(quote! {
+                    .group_field_based(#field, #group_on, #add_to_group, None)
+                });
+            }
+            Some(SpatialAttribute::AtomColor { selector, value }) => {
+                decorator_calls.push(quote! {
+                    .atom_color(#selector, #value)
+                });
+            }
+            Some(SpatialAttribute::Size { selector, height, width }) => {
+                decorator_calls.push(quote! {
+                    .size(#selector, #height, #width)
+                });
+            }
+            Some(SpatialAttribute::Icon { selector, path, show_labels }) => {
+                decorator_calls.push(quote! {
+                    .icon(#selector, #path, #show_labels)
+                });
+            }
+            Some(SpatialAttribute::EdgeColor { field, value, selector }) => {
+                let selector_arg = match selector {
+                    Some(s) => quote! { Some(#s) },
+                    None => quote! { None },
+                };
+                decorator_calls.push(quote! {
+                    .edge_color(#field, #value, #selector_arg)
+                });
+            }
+            Some(SpatialAttribute::Projection { sig }) => {
+                decorator_calls.push(quote! {
+                    .projection(#sig)
+                });
+            }
+            Some(SpatialAttribute::HideField { field, selector }) => {
+                let selector_arg = match selector {
+                    Some(s) => quote! { Some(#s) },
+                    None => quote! { None },
+                };
+                decorator_calls.push(quote! {
+                    .hide_field(#field, #selector_arg)
+                });
+            }
+            Some(SpatialAttribute::HideAtom { selector }) => {
+                decorator_calls.push(quote! {
+                    .hide_atom(#selector)
+                });
+            }
+            Some(SpatialAttribute::InferredEdge { name, selector }) => {
+                decorator_calls.push(quote! {
+                    .inferred_edge(#name, #selector)
+                });
+            }
+            None => {}
+        }
+    }
+    
+    // Second, analyze field types and collect their decorators at compile time
+    let field_type_decorators = collect_field_type_decorators(&input.data);
+    
+    // Combine own decorators with field type decorators
+    decorator_calls.extend(field_type_decorators);
     
     for attr in &input.attrs {
         match parse_spatial_attribute(attr) {
