@@ -14,7 +14,7 @@ struct RBTree {
 #[attribute(field = "color")]
 #[orientation(selector="{x, y : Node | x->y in left}", directions=["left", "below"])]
 #[orientation(selector="{x, y : Node | x->y in right}", directions=["right", "below"])]
-#[hide_atom(selector="enum_variant + u32 + None")]
+#[hide_atom(selector="Color + u32 + None")]
 #[atom_color(selector="{x : Node | @:(x.color) = Red}", value="red")]
 #[atom_color(selector="{x : Node | @:(x.color) = Black}", value="black")]
 struct Node {
