@@ -12,8 +12,11 @@ struct RBTree {
 #[derive(Serialize, CndDecorators)]
 #[attribute(field = "key")]
 #[attribute(field = "color")]
-#[orientation(selector="left", directions=["left", "below"])]
-#[orientation(selector="right", directions=["right", "below"])]
+#[orientation(selector="{x, y : Node | x->y in left}", directions=["left", "below"])]
+#[orientation(selector="{x, y : Node | x->y in right}", directions=["right", "below"])]
+#[hide_atom(selector="enum_variant + u32 + None")]
+#[atom_color(selector="{x : Node | @:(x.color) = Red}", value="red")]
+#[atom_color(selector="{x : Node | @:(x.color) = Black}", value="black")]
 struct Node {
     key: u32,
     color: Color,

@@ -276,7 +276,7 @@ impl<'a> Serializer for &'a mut JsonDataSerializer {
     }
 
     fn serialize_none(self) -> Result<Self::Ok, Self::Error> {
-        Ok(self.emit_atom("option", "None"))
+        Ok(self.emit_atom("None", "None"))
     }
 
     fn serialize_some<T: ?Sized + Serialize>(self, value: &T) -> Result<Self::Ok, Self::Error> {
