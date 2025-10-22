@@ -1,10 +1,8 @@
 use json_data_instance_export::{diagram, CndDecorators};
 use serde::Serialize;
 
-/// Company type with compile-time decorator collection.
-/// When you call `Company::decorators()`, it automatically includes
-/// decorators from nested Person types too!
-#[derive(Serialize, CndDecorators)]
+
+#[derive(Serialize, CndDecorators, Debug)]
 #[attribute(field = "name")]
 #[flag(name="hideDisconnected")]
 struct Company {
@@ -14,7 +12,7 @@ struct Company {
 
 /// Person type with decorators that will be automatically
 /// included when processing any type that contains Person fields.
-#[derive(Serialize, CndDecorators)]
+#[derive(Serialize, CndDecorators, Debug)]
 #[attribute(field = "age")]
 struct Person {
     name: String,
@@ -29,6 +27,9 @@ fn main() {
             Person { name: "Bob".to_string(), age: 25 },
         ],
     };
+    // So the debug trait works sort of like we want CnD to work in terms of
+    // serialization.
+    println!("{company:#?}");
 
     
     // This call to diagram() will automatically collect decorators from:

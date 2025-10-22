@@ -96,6 +96,8 @@ pub struct JsonDataSerializer {
     collected_decorators: CndDecorators,
     visited_types: std::collections::HashSet<String>,
     exclude_type: Option<String>,
+    /// Cache for singleton atoms (like None, unit, etc.) that should be reused
+    singleton_atoms: HashMap<(String, String), String>,  // (type, label) -> atom_id
 }
 
 impl JsonDataSerializer {
@@ -107,6 +109,7 @@ impl JsonDataSerializer {
             collected_decorators: CndDecorators::default(),
             visited_types: std::collections::HashSet::new(),
             exclude_type: None,
+            singleton_atoms: HashMap::new(),
         }
     }
 
@@ -123,6 +126,21 @@ impl JsonDataSerializer {
             r#type: typ.to_string(),
             label: label.to_string(),
         });
+        id
+    }
+
+    /// Get or create a singleton atom - atoms that should only exist once
+    /// (like None, unit, true, false, etc.)
+    fn get_or_create_singleton(&mut self, typ: &str, label: &str) -> String {
+        let key = (typ.to_string(), label.to_string());
+        
+        if let Some(existing_id) = self.singleton_atoms.get(&key) {
+            return existing_id.clone();
+        }
+        
+        // Create new singleton atom
+        let id = self.emit_atom(typ, label);
+        self.singleton_atoms.insert(key, id.clone());
         id
     }
 
@@ -220,7 +238,8 @@ impl<'a> Serializer for &'a mut JsonDataSerializer {
 
     // Primitive types
     fn serialize_bool(self, v: bool) -> Result<Self::Ok, Self::Error> {
-        Ok(self.emit_atom("bool", &v.to_string()))
+        // Booleans are singletons - there's only one true and one false
+        Ok(self.get_or_create_singleton("bool", &v.to_string()))
     }
 
     fn serialize_i8(self, v: i8) -> Result<Self::Ok, Self::Error> {
@@ -276,7 +295,7 @@ impl<'a> Serializer for &'a mut JsonDataSerializer {
     }
 
     fn serialize_none(self) -> Result<Self::Ok, Self::Error> {
-        Ok(self.emit_atom("option", "None"))
+        Ok(self.get_or_create_singleton("None", "None"))
     }
 
     fn serialize_some<T: ?Sized + Serialize>(self, value: &T) -> Result<Self::Ok, Self::Error> {
@@ -284,20 +303,24 @@ impl<'a> Serializer for &'a mut JsonDataSerializer {
     }
 
     fn serialize_unit(self) -> Result<Self::Ok, Self::Error> {
-        Ok(self.emit_atom("unit", "()"))
+        // Unit () is a singleton
+        Ok(self.get_or_create_singleton("unit", "()"))
     }
 
     fn serialize_unit_struct(self, name: &str) -> Result<Self::Ok, Self::Error> {
-        Ok(self.emit_atom("unit_struct", name))
+        // Unit structs are singletons - only one instance of each unit struct type exists
+        Ok(self.get_or_create_singleton("unit_struct", name))
     }
 
     fn serialize_unit_variant(
         self,
-        _enum_name: &str,
+        enum_name: &str,
         _variant_index: u32,
         variant: &str,
     ) -> Result<Self::Ok, Self::Error> {
-        Ok(self.emit_atom("enum_variant", variant))
+        // Unit variants are singletons - Color::Red is always the same value
+        // This is similar to None, (), true, false - zero-sized types with no data
+        Ok(self.get_or_create_singleton(enum_name, variant))
     }
 
     fn serialize_newtype_struct<T: ?Sized + Serialize>(
@@ -313,14 +336,14 @@ impl<'a> Serializer for &'a mut JsonDataSerializer {
 
     fn serialize_newtype_variant<T: ?Sized + Serialize>(
         self,
-        _enum_name: &str,
+        enum_name: &str,
         _variant_index: u32,
         variant: &str,
         value: &T,
     ) -> Result<Self::Ok, Self::Error> {
-        let variant_id = self.emit_atom("enum_variant", variant);
+        let variant_id = self.emit_atom(enum_name, variant);
         let inner_id = value.serialize(&mut *self)?;
-        self.push_relation("variant_value", vec![variant_id.clone(), inner_id], vec!["enum_variant", "atom"]);
+        self.push_relation("variant_value", vec![variant_id.clone(), inner_id], vec![enum_name, "atom"]);
         Ok(variant_id)
     }
 
@@ -427,15 +450,16 @@ impl<'a> Serializer for &'a mut JsonDataSerializer {
     /// ```
     fn serialize_tuple_variant(
         self,
-        _enum_name: &str,
+        enum_name: &str,
         _variant_index: u32,
         variant: &str,
         _len: usize,
     ) -> Result<Self::SerializeTupleVariant, Self::Error> {
-        let variant_id = self.emit_atom("enum_variant", variant);
+        let variant_id = self.emit_atom(enum_name, variant);
         Ok(TupleVariantSerializer {
             serializer: self,
             variant_id,
+            variant_type: enum_name.to_string(),
             index: 0,
         })
     }
@@ -541,15 +565,16 @@ impl<'a> Serializer for &'a mut JsonDataSerializer {
     /// ```
     fn serialize_struct_variant(
         self,
-        _enum_name: &str,
+        enum_name: &str,
         _variant_index: u32,
         variant: &str,
         _len: usize,
     ) -> Result<Self::SerializeStructVariant, Self::Error> {
-        let variant_id = self.emit_atom("enum_variant", variant);
+        let variant_id = self.emit_atom(enum_name, variant);
         Ok(StructVariantSerializer {
             serializer: self,
             variant_id,
+            variant_type: enum_name.to_string(),
         })
     }
 }
@@ -650,6 +675,7 @@ impl<'a> SerializeTupleStruct for TupleStructSerializer<'a> {
 pub struct TupleVariantSerializer<'a> {
     serializer: &'a mut JsonDataSerializer,
     variant_id: String,
+    variant_type: String,
     index: usize,
 }
 
@@ -662,7 +688,7 @@ impl<'a> SerializeTupleVariant for TupleVariantSerializer<'a> {
         self.serializer.push_relation(
             "idx", 
             vec![self.variant_id.clone(), self.index.to_string(), field_id], 
-            vec!["enum_variant", "index", "atom"]
+            vec![&self.variant_type, "index", "atom"]
         );
         self.index += 1;
         Ok(())
@@ -761,6 +787,7 @@ impl<'a> SerializeStruct for StructSerializer<'a> {
 pub struct StructVariantSerializer<'a> {
     serializer: &'a mut JsonDataSerializer,
     variant_id: String,
+    variant_type: String,
 }
 
 impl<'a> SerializeStructVariant for StructVariantSerializer<'a> {
@@ -777,7 +804,7 @@ impl<'a> SerializeStructVariant for StructVariantSerializer<'a> {
         self.serializer.push_relation(
             key, 
             vec![self.variant_id.clone(), field_id], 
-            vec!["enum_variant", "atom"]
+            vec![&self.variant_type, "atom"]
         );
         Ok(())
     }

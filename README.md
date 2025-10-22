@@ -72,3 +72,11 @@ The example demonstrates a `Company` with `Vec<Person>` where both types have de
 ## License
 
 Licensed under either of Apache License, Version 2.0 or MIT license at your option.
+
+
+## Data Dup
+
+The Rust mental model we're following:
+
+Zero-sized types → Singletons (they have no data, only type/variant identity)
+Types with data → Multiple atoms (each occurrence is a distinct value)
