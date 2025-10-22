@@ -77,25 +77,12 @@ impl RBTree {
 }
 
 fn main() {
-    // Build a red-black tree with several nodes:
-    //
-    //           (5, Black)
-    //          /          \
-    //      (3, Red)     (7, Black)
-    //      /    \        /    \
-    //   (1)   (4)     (6)   (8)
+
     //
     let mut tree = RBTree::new();
     tree.insert(5);
     tree.insert(3);
     tree.insert(7);
-    tree.insert(1);
-    tree.insert(4);
-    tree.insert(6);
-    tree.insert(8);
 
-    // This call to diagram() will automatically collect decorators from:
-    // 2. Node type (key attribute, isTreeNode flag) - discovered automatically at compile time!
-    // 3. Color enum (empty decorators) - enums can also derive CndDecorators!
     diagram(&tree);
 }
