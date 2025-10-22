@@ -381,7 +381,7 @@ fn parse_orientation_args(attr: &Attribute) -> Option<SpatialAttribute> {
         let tokens = &meta.tokens;
         let token_str = tokens.to_string();
         
-        let selector = extract_string_from_tokens(&token_str, "selector").unwrap_or_else(|| "*".to_string());
+        let selector = extract_string_from_tokens(&token_str, "selector").unwrap_or_else(|| "".to_string());
         let directions = extract_array_from_tokens(&token_str, "directions")
             .unwrap_or_else(|| vec!["up".to_string(), "down".to_string()]);
         
@@ -405,7 +405,7 @@ fn parse_group_args(attr: &Attribute) -> Option<SpatialAttribute> {
             Some(SpatialAttribute::GroupField { field, group_on, add_to_group })
         } else {
             // Selector-based grouping
-            let selector = extract_string_from_tokens(&token_str, "selector").unwrap_or_else(|| "*".to_string());
+            let selector = extract_string_from_tokens(&token_str, "selector").unwrap_or_else(|| "".to_string());
             let name = extract_string_from_tokens(&token_str, "name").unwrap_or_else(|| "default".to_string());
             
             Some(SpatialAttribute::GroupSelector { selector, name })
@@ -420,7 +420,7 @@ fn parse_align_args(attr: &Attribute) -> Option<SpatialAttribute> {
         let tokens = &meta.tokens;
         let token_str = tokens.to_string();
         
-        let selector = extract_string_from_tokens(&token_str, "selector").unwrap_or_else(|| "*".to_string());
+        let selector = extract_string_from_tokens(&token_str, "selector").unwrap_or_else(|| "".to_string());
         let direction = extract_string_from_tokens(&token_str, "direction").unwrap_or_else(|| "horizontal".to_string());
         
         Some(SpatialAttribute::Align { selector, direction })
@@ -434,7 +434,7 @@ fn parse_cyclic_args(attr: &Attribute) -> Option<SpatialAttribute> {
         let tokens = &meta.tokens;
         let token_str = tokens.to_string();
         
-        let selector = extract_string_from_tokens(&token_str, "selector").unwrap_or_else(|| "*".to_string());
+        let selector = extract_string_from_tokens(&token_str, "selector").unwrap_or_else(|| "".to_string());
         let direction = extract_string_from_tokens(&token_str, "direction").unwrap_or_else(|| "up".to_string());
         
         Some(SpatialAttribute::Cyclic { selector, direction })
@@ -448,7 +448,7 @@ fn parse_atom_color_args(attr: &Attribute) -> Option<SpatialAttribute> {
         let tokens = &meta.tokens;
         let token_str = tokens.to_string();
         
-        let selector = extract_string_from_tokens(&token_str, "selector").unwrap_or_else(|| "*".to_string());
+        let selector = extract_string_from_tokens(&token_str, "selector").unwrap_or_else(|| "".to_string());
         let value = extract_string_from_tokens(&token_str, "value").unwrap_or_else(|| "blue".to_string());
         
         Some(SpatialAttribute::AtomColor { selector, value })
@@ -462,7 +462,7 @@ fn parse_size_args(attr: &Attribute) -> Option<SpatialAttribute> {
         let tokens = &meta.tokens;
         let token_str = tokens.to_string();
         
-        let selector = extract_string_from_tokens(&token_str, "selector").unwrap_or_else(|| "*".to_string());
+        let selector = extract_string_from_tokens(&token_str, "selector").unwrap_or_else(|| "".to_string());
         let height = extract_number_from_tokens(&token_str, "height").unwrap_or(20);
         let width = extract_number_from_tokens(&token_str, "width").unwrap_or(30);
         
@@ -477,7 +477,7 @@ fn parse_icon_args(attr: &Attribute) -> Option<SpatialAttribute> {
         let tokens = &meta.tokens;
         let token_str = tokens.to_string();
         
-        let selector = extract_string_from_tokens(&token_str, "selector").unwrap_or_else(|| "*".to_string());
+        let selector = extract_string_from_tokens(&token_str, "selector").unwrap_or_else(|| "".to_string());
         let path = extract_string_from_tokens(&token_str, "path").unwrap_or_else(|| "icon.png".to_string());
         let show_labels = extract_bool_from_tokens(&token_str, "show_labels").unwrap_or(true);
         
@@ -534,7 +534,7 @@ fn parse_hide_atom_args(attr: &Attribute) -> Option<SpatialAttribute> {
         let tokens = &meta.tokens;
         let token_str = tokens.to_string();
         
-        let selector = extract_string_from_tokens(&token_str, "selector").unwrap_or_else(|| "*".to_string());
+        let selector = extract_string_from_tokens(&token_str, "selector").unwrap_or_else(|| "".to_string());
         
         Some(SpatialAttribute::HideAtom { selector })
     } else {
@@ -548,7 +548,7 @@ fn parse_inferred_edge_args(attr: &Attribute) -> Option<SpatialAttribute> {
         let token_str = tokens.to_string();
         
         let name = extract_string_from_tokens(&token_str, "name").unwrap_or_else(|| "edge".to_string());
-        let selector = extract_string_from_tokens(&token_str, "selector").unwrap_or_else(|| "*".to_string());
+        let selector = extract_string_from_tokens(&token_str, "selector").unwrap_or_else(|| "".to_string());
         
         Some(SpatialAttribute::InferredEdge { name, selector })
     } else {
