@@ -207,23 +207,9 @@ pub struct FlagDirective {
 
 /// Trait implemented by structs with CnD decorators
 /// All types have a default implementation that returns empty decorators
+/// Trait implemented by structs with CnD decorators
 pub trait HasCndDecorators {
-    fn decorators() -> CndDecorators {
-        CndDecorators::default()
-    }
-    
-    /// Collect decorators from this type and all nested types that also implement HasCndDecorators
-    /// Default implementation just returns self decorators
-    fn recursive_decorators() -> CndDecorators {
-        Self::decorators()
-    }
-    
-    /// Trigger registration of this type in the global registry
-    /// This should be called to ensure the type is available for serialization-time lookup
-    fn ensure_registered() {
-        // Calling decorators() triggers registration in the macro-generated code
-        let _ = Self::decorators();
-    }
+    fn decorators() -> CndDecorators;
 }
 
 /// Global registry for instance-level annotations
@@ -366,7 +352,7 @@ pub fn to_yaml_for_instance<T: HasCndDecorators>(instance: &T) -> Result<String,
 /// This examines the struct definition and attempts to register commonly used nested types
 pub fn auto_register_related_types<T: HasCndDecorators + Serialize>() {
     // Always register the root type
-    T::ensure_registered();
+    let _ = T::decorators();
     
     // TODO: Add reflection-based discovery of field types
     // For now, users still need to manually register, but this provides a cleaner API
@@ -378,28 +364,29 @@ pub fn auto_register_types() {
     // This is a placeholder for automatic type discovery
     // In the future, this could use reflection or other mechanisms
 }
+
 /// Users should call this for their root data type to enable recursive decorator collection
 pub fn ensure_types_registered<T: HasCndDecorators>() {
-    T::ensure_registered();
+    let _ = T::decorators();
 }
 
 /// Register a type and its common field types
 /// This is a convenience function for common patterns
 pub fn register_types<T1: HasCndDecorators>() {
-    T1::ensure_registered();
+    let _ = T1::decorators();
 }
 
 /// Register two types and their decorators
 pub fn register_types2<T1: HasCndDecorators, T2: HasCndDecorators>() {
-    T1::ensure_registered();
-    T2::ensure_registered();
+    let _ = T1::decorators();
+    let _ = T2::decorators();
 }
 
 /// Register three types and their decorators
 pub fn register_types3<T1: HasCndDecorators, T2: HasCndDecorators, T3: HasCndDecorators>() {
-    T1::ensure_registered();
-    T2::ensure_registered();
-    T3::ensure_registered();
+    let _ = T1::decorators();
+    let _ = T2::decorators();
+    let _ = T3::decorators();
 }
 
 /// Replace "self" in selector with instance-specific identifier
