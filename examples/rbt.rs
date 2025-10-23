@@ -4,24 +4,24 @@ use serde::Serialize;
 
 #[derive(Serialize, CndDecorators)]
 struct RBTree {
-    root: Option<Box<Node>>,
+    root: Option<Box<RBNode>>,
 }
 
-/// Node in the red-black tree with decorators that will be automatically
-/// included when processing any type that contains Node fields.
+/// RBNode in the red-black tree with decorators that will be automatically
+/// included when processing any type that contains RBNode fields.
 #[derive(Serialize, CndDecorators)]
 #[attribute(field = "key")]
 #[attribute(field = "color")]
-#[orientation(selector="{x, y : Node | x->y in left}", directions=["left", "below"])]
-#[orientation(selector="{x, y : Node | x->y in right}", directions=["right", "below"])]
+#[orientation(selector="{x, y : RBNode | x->y in left}", directions=["left", "below"])]
+#[orientation(selector="{x, y : RBNode | x->y in right}", directions=["right", "below"])]
 #[hide_atom(selector="Color + u32 + None")]
-#[atom_color(selector="{x : Node | @:(x.color) = Red}", value="red")]
-#[atom_color(selector="{x : Node | @:(x.color) = Black}", value="black")]
-struct Node {
+#[atom_color(selector="{x : RBNode | @:(x.color) = Red}", value="red")]
+#[atom_color(selector="{x : RBNode | @:(x.color) = Black}", value="black")]
+struct RBNode {
     key: u32,
     color: Color,
-    left: Option<Box<Node>>,
-    right: Option<Box<Node>>,
+    left: Option<Box<RBNode>>,
+    right: Option<Box<RBNode>>,
 }
 
 /// Color of a node in the red-black tree
@@ -32,9 +32,9 @@ enum Color {
     Black,
 }
 
-impl Node {
+impl RBNode {
     fn new(key: u32, color: Color) -> Self {
-        Node {
+        RBNode {
             key,
             color,
             left: None,
@@ -47,14 +47,14 @@ impl Node {
             match &mut self.left {
                 Some(left) => left.insert(key),
                 None => {
-                    self.left = Some(Box::new(Node::new(key, Color::Red)));
+                    self.left = Some(Box::new(RBNode::new(key, Color::Red)));
                 }
             }
         } else if key > self.key {
             match &mut self.right {
                 Some(right) => right.insert(key),
                 None => {
-                    self.right = Some(Box::new(Node::new(key, Color::Red)));
+                    self.right = Some(Box::new(RBNode::new(key, Color::Red)));
                 }
             }
         }
@@ -70,7 +70,7 @@ impl RBTree {
         match &mut self.root {
             Some(root) => root.insert(key),
             None => {
-                self.root = Some(Box::new(Node::new(key, Color::Black)));
+                self.root = Some(Box::new(RBNode::new(key, Color::Black)));
             }
         }
     }
