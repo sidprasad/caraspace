@@ -21,7 +21,7 @@ src/
 ├── lib.rs                    # Main API with cleaned up functions
 ├── export.rs                 # JSON serialization with type information
 ├── jsondata.rs               # Custom JSON data structures
-└── cnd_annotations/
+└── spytial_annotations/
     ├── mod.rs                # CnD decorator system
     └── runtime.rs            # Runtime builder with compile-time support
 

@@ -11,7 +11,7 @@ macro_rules! register_cnd_types {
         // Register the specified types by calling their decorators() method
         // This is much simpler than the old register_types2::<T1, T2>() pattern
         $(
-            let _ = <$type as $crate::cnd_annotations::HasSpytialDecorators>::decorators();
+            let _ = <$type as $crate::spytial_annotations::HasSpytialDecorators>::decorators();
         )+
     };
 }

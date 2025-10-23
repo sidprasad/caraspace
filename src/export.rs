@@ -56,7 +56,7 @@
 //! - **Relations** carry type information for both ends of relationships
 
 use crate::jsondata::*;
-use crate::cnd_annotations::SpytialDecorators;
+use crate::spytial_annotations::SpytialDecorators;
 use serde::ser::{
     Serialize, SerializeMap, SerializeSeq, SerializeStruct, SerializeStructVariant,
     SerializeTuple, SerializeTupleStruct, SerializeTupleVariant, Serializer,
@@ -174,7 +174,7 @@ impl JsonDataSerializer {
         self.visited_types.insert(type_name.to_string());
 
         // First, try to get already-registered decorators
-        if let Some(type_decorators) = crate::cnd_annotations::get_type_decorators(type_name) {
+        if let Some(type_decorators) = crate::spytial_annotations::get_type_decorators(type_name) {
             // Merge the decorators into our collected set
             self.collected_decorators.constraints.extend(type_decorators.constraints);
             self.collected_decorators.directives.extend(type_decorators.directives);
@@ -185,7 +185,7 @@ impl JsonDataSerializer {
         // This is a heuristic approach: we try to trigger registration for common patterns
         if self.try_trigger_registration(type_name) {
             // After triggering, try to get decorators again
-            if let Some(type_decorators) = crate::cnd_annotations::get_type_decorators(type_name) {
+            if let Some(type_decorators) = crate::spytial_annotations::get_type_decorators(type_name) {
                 self.collected_decorators.constraints.extend(type_decorators.constraints);
                 self.collected_decorators.directives.extend(type_decorators.directives);
             }

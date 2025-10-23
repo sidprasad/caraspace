@@ -270,21 +270,21 @@ pub fn derive_spytial_decorators(input: TokenStream) -> TokenStream {
 
     // Generate the HasSpytialDecorators implementation
     let expanded = quote! {
-        impl #impl_generics json_data_instance_export::cnd_annotations::HasSpytialDecorators for #name #ty_generics #where_clause {
-            fn decorators() -> json_data_instance_export::cnd_annotations::SpytialDecorators {
+        impl #impl_generics json_data_instance_export::spytial_annotations::HasSpytialDecorators for #name #ty_generics #where_clause {
+            fn decorators() -> json_data_instance_export::spytial_annotations::SpytialDecorators {
                 // Register this type automatically when decorators() is called
                 static REGISTRATION: ::std::sync::Once = ::std::sync::Once::new();
                 REGISTRATION.call_once(|| {
-                    let decorators = json_data_instance_export::cnd_annotations::SpytialDecoratorsBuilder::new()
+                    let decorators = json_data_instance_export::spytial_annotations::SpytialDecoratorsBuilder::new()
                         #(#decorator_calls)*
                         .build();
-                    json_data_instance_export::cnd_annotations::register_type_decorators(
+                    json_data_instance_export::spytial_annotations::register_type_decorators(
                         stringify!(#name), 
                         decorators.clone()
                     );
                 });
 
-                json_data_instance_export::cnd_annotations::SpytialDecoratorsBuilder::new()
+                json_data_instance_export::spytial_annotations::SpytialDecoratorsBuilder::new()
                     #(#decorator_calls)*
                     .build()
             }

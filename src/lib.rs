@@ -1,6 +1,6 @@
 pub mod jsondata;
 pub mod export;
-pub mod cnd_annotations;
+pub mod spytial_annotations;
 
 pub use export::export_json_instance;
 // Re-export the derive macro for spatial annotations
@@ -42,7 +42,7 @@ use std::process::Command;
 /// let company = Company { /* ... */ };
 /// diagram(&company);  // Shows decorators from both Company AND Person
 /// ```
-pub fn diagram<T: cnd_annotations::HasSpytialDecorators + Serialize>(value: &T) {
+pub fn diagram<T: spytial_annotations::HasSpytialDecorators + Serialize>(value: &T) {
     let cnd_spec = collect_cnd_spec_for_diagram(value);
     diagram_impl(value, &cnd_spec);
 }
@@ -52,7 +52,7 @@ pub fn diagram<T: cnd_annotations::HasSpytialDecorators + Serialize>(value: &T) 
 /// With the new compile-time system, calling `T::decorators()` returns decorators
 /// from the type itself AND all nested types that have decorators. This eliminates
 /// the need for complex runtime type discovery and registration.
-fn collect_cnd_spec_for_diagram<T: cnd_annotations::HasSpytialDecorators + Serialize>(_value: &T) -> String {
+fn collect_cnd_spec_for_diagram<T: spytial_annotations::HasSpytialDecorators + Serialize>(_value: &T) -> String {
     println!("🔍 Assembling CnD spec with compile-time decorator collection...");
     
     // The magic happens here: T::decorators() includes ALL decorators 
@@ -63,7 +63,7 @@ fn collect_cnd_spec_for_diagram<T: cnd_annotations::HasSpytialDecorators + Seria
              all_decorators.directives.len());
     
     // Serialize to YAML
-    let cnd_spec = cnd_annotations::to_yaml(&all_decorators).unwrap_or_default();
+    let cnd_spec = spytial_annotations::to_yaml(&all_decorators).unwrap_or_default();
     println!("   📋 Generated CnD spec:\n{}", cnd_spec);
     
     cnd_spec
