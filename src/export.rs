@@ -56,7 +56,7 @@
 //! - **Relations** carry type information for both ends of relationships
 
 use crate::jsondata::*;
-use crate::cnd_annotations::CndDecorators;
+use crate::cnd_annotations::SpytialDecorators;
 use serde::ser::{
     Serialize, SerializeMap, SerializeSeq, SerializeStruct, SerializeStructVariant,
     SerializeTuple, SerializeTupleStruct, SerializeTupleVariant, Serializer,
@@ -77,7 +77,7 @@ pub fn export_json_instance<T: Serialize>(value: &T) -> JsonDataInstance {
 
 /// Export a Rust data structure and collect CnD decorators from all encountered types
 /// Excludes the root type from collection to avoid double-counting
-pub fn export_json_instance_with_decorators<T: Serialize>(value: &T, root_type_name: &str) -> (JsonDataInstance, CndDecorators) {
+pub fn export_json_instance_with_decorators<T: Serialize>(value: &T, root_type_name: &str) -> (JsonDataInstance, SpytialDecorators) {
     let mut serializer = JsonDataSerializer::new();
     serializer.exclude_type = Some(root_type_name.to_string());
     value.serialize(&mut serializer).unwrap();
@@ -93,7 +93,7 @@ pub struct JsonDataSerializer {
     counter: usize,
     atoms: Vec<IAtom>,
     relations: HashMap<String, IRelation>,
-    collected_decorators: CndDecorators,
+    collected_decorators: SpytialDecorators,
     visited_types: std::collections::HashSet<String>,
     exclude_type: Option<String>,
     /// Cache for singleton atoms (like None, unit, etc.) that should be reused
@@ -106,7 +106,7 @@ impl JsonDataSerializer {
             counter: 0,
             atoms: vec![],
             relations: HashMap::new(),
-            collected_decorators: CndDecorators::default(),
+            collected_decorators: SpytialDecorators::default(),
             visited_types: std::collections::HashSet::new(),
             exclude_type: None,
             singleton_atoms: HashMap::new(),

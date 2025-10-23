@@ -5,12 +5,12 @@ use once_cell::sync::Lazy;
 
 /// Main structure containing all CnD decorators for a type or instance
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct CndDecorators {
+pub struct SpytialDecorators {
     pub constraints: Vec<Constraint>,
     pub directives: Vec<Directive>,
 }
 
-impl Default for CndDecorators {
+impl Default for SpytialDecorators {
     fn default() -> Self {
         Self {
             constraints: Vec::new(),
@@ -208,29 +208,30 @@ pub struct FlagDirective {
 /// Trait implemented by structs with CnD decorators
 /// All types have a default implementation that returns empty decorators
 /// Trait implemented by structs with CnD decorators
-pub trait HasCndDecorators {
-    fn decorators() -> CndDecorators;
+pub trait HasSpytialDecorators {
+    fn decorators() -> SpytialDecorators;
 }
 
 /// Global registry for instance-level annotations
-static INSTANCE_REGISTRY: Lazy<Mutex<HashMap<usize, CndDecorators>>> = 
+static INSTANCE_REGISTRY: Lazy<Mutex<HashMap<usize, SpytialDecorators>>> = 
     Lazy::new(|| Mutex::new(HashMap::new()));
 
 /// Counter for generating unique instance IDs
 static INSTANCE_ID_COUNTER: Lazy<Mutex<usize>> = Lazy::new(|| Mutex::new(0));
 
 /// Global registry for type-level decorators keyed by type name
-static TYPE_REGISTRY: Lazy<Mutex<HashMap<String, CndDecorators>>> = 
+static TYPE_REGISTRY: Lazy<Mutex<HashMap<String, SpytialDecorators>>> = 
     Lazy::new(|| Mutex::new(HashMap::new()));
 
 /// Register CnD decorators for a type (used by procedural macros)
-pub fn register_type_decorators(type_name: &str, decorators: CndDecorators) {
+pub fn register_type_decorators(type_name: &str, decorators: SpytialDecorators) {
     let mut registry = TYPE_REGISTRY.lock().unwrap();
     registry.insert(type_name.to_string(), decorators);
 }
 
 /// Get CnD decorators for a type by name
-pub fn get_type_decorators(type_name: &str) -> Option<CndDecorators> {
+/// Get decorators for a specific type, if registered
+pub fn get_type_decorators(type_name: &str) -> Option<SpytialDecorators> {
     let registry = TYPE_REGISTRY.lock().unwrap();
     registry.get(type_name).cloned()
 }
@@ -307,7 +308,7 @@ pub fn annotate_instance<T>(instance: &mut T, annotation: Annotation) {
 }
 
 /// Collect decorators for both type and instance
-pub fn collect_decorators_for_instance<T: HasCndDecorators>(instance: &T) -> CndDecorators {
+pub fn collect_decorators_for_instance<T: HasSpytialDecorators>(instance: &T) -> SpytialDecorators {
     let mut combined = T::decorators();
     
     let instance_addr = instance as *const T as usize;
@@ -322,35 +323,37 @@ pub fn collect_decorators_for_instance<T: HasCndDecorators>(instance: &T) -> Cnd
 }
 
 /// Collect only instance-level decorators (without type decorators)
-pub fn collect_instance_only_decorators<T>(instance: &T) -> CndDecorators {
+pub fn collect_instance_only_decorators<T>(instance: &T) -> SpytialDecorators {
     let instance_addr = instance as *const T as usize;
     let registry = INSTANCE_REGISTRY.lock().unwrap();
     
     if let Some(instance_decorators) = registry.get(&instance_addr) {
         instance_decorators.clone()
     } else {
-        CndDecorators::default()
+        SpytialDecorators::default()
     }
 }
 
 /// Serialize decorators to YAML string
-pub fn to_yaml(decorators: &CndDecorators) -> Result<String, serde_yaml::Error> {
+pub fn to_yaml(decorators: &SpytialDecorators) -> Result<String, serde_yaml::Error> {
     serde_yaml::to_string(decorators)
 }
 
 /// Helper function to get decorators for a type as YAML
-pub fn to_yaml_for_type<T: HasCndDecorators>() -> Result<String, serde_yaml::Error> {
+/// Convert type decorators to YAML
+pub fn to_yaml_for_type<T: HasSpytialDecorators>() -> Result<String, serde_yaml::Error> {
     to_yaml(&T::decorators())
 }
 
 /// Helper function to get decorators for an instance as YAML
-pub fn to_yaml_for_instance<T: HasCndDecorators>(instance: &T) -> Result<String, serde_yaml::Error> {
+/// Convert instance decorators to YAML
+pub fn to_yaml_for_instance<T: HasSpytialDecorators>(instance: &T) -> Result<String, serde_yaml::Error> {
     to_yaml(&collect_decorators_for_instance(instance))
 }
 
 /// Helper function to automatically register types based on the root type
 /// This examines the struct definition and attempts to register commonly used nested types
-pub fn auto_register_related_types<T: HasCndDecorators + Serialize>() {
+pub fn auto_register_related_types<T: HasSpytialDecorators + Serialize>() {
     // Always register the root type
     let _ = T::decorators();
     
@@ -366,24 +369,24 @@ pub fn auto_register_types() {
 }
 
 /// Users should call this for their root data type to enable recursive decorator collection
-pub fn ensure_types_registered<T: HasCndDecorators>() {
+pub fn ensure_types_registered<T: HasSpytialDecorators>() {
     let _ = T::decorators();
 }
 
 /// Register a type and its common field types
 /// This is a convenience function for common patterns
-pub fn register_types<T1: HasCndDecorators>() {
+pub fn register_types<T1: HasSpytialDecorators>() {
     let _ = T1::decorators();
 }
 
-/// Register two types and their decorators
-pub fn register_types2<T1: HasCndDecorators, T2: HasCndDecorators>() {
+/// Register two types' decorators
+pub fn register_types2<T1: HasSpytialDecorators, T2: HasSpytialDecorators>() {
     let _ = T1::decorators();
     let _ = T2::decorators();
 }
 
 /// Register three types and their decorators
-pub fn register_types3<T1: HasCndDecorators, T2: HasCndDecorators, T3: HasCndDecorators>() {
+pub fn register_types3<T1: HasSpytialDecorators, T2: HasSpytialDecorators, T3: HasSpytialDecorators>() {
     let _ = T1::decorators();
     let _ = T2::decorators();
     let _ = T3::decorators();
@@ -396,16 +399,19 @@ fn substitute_self_reference(selector: &str, _instance_addr: usize) -> String {
     selector.replace("self", &format!("obj_{}", *counter))
 }
 
-/// Builder for creating CnD decorators
-#[derive(Debug, Default)]
-pub struct CndDecoratorsBuilder {
+/// Builder for constructing spatial decorators
+#[derive(Debug)]
+pub struct SpytialDecoratorsBuilder {
     constraints: Vec<Constraint>,
     directives: Vec<Directive>,
 }
 
-impl CndDecoratorsBuilder {
+impl SpytialDecoratorsBuilder {
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            constraints: Vec::new(),
+            directives: Vec::new(),
+        }
     }
 
     pub fn orientation(mut self, selector: &str, directions: Vec<&str>) -> Self {
@@ -548,17 +554,17 @@ impl CndDecoratorsBuilder {
         self
     }
 
-    /// Include decorators from another type that implements HasCndDecorators
-    /// This is used for compile-time decorator collection from nested types
-    pub fn include_decorators_from_type<T: HasCndDecorators>(mut self) -> Self {
+    /// Include decorators from another type that implements HasSpytialDecorators
+    /// This is used for compile-time decorator collection from field types
+    pub fn include_decorators_from_type<T: HasSpytialDecorators>(mut self) -> Self {
         let other_decorators = T::decorators();
         self.constraints.extend(other_decorators.constraints);
         self.directives.extend(other_decorators.directives);
         self
     }
 
-    pub fn build(self) -> CndDecorators {
-        CndDecorators {
+    pub fn build(self) -> SpytialDecorators {
+        SpytialDecorators {
             constraints: self.constraints,
             directives: self.directives,
         }
@@ -622,14 +628,14 @@ mod tests {
 
     #[test]
     fn test_spytial_decorators_default() {
-        let decorators = CndDecorators::default();
+        let decorators = SpytialDecorators::default();
         assert!(decorators.constraints.is_empty());
         assert!(decorators.directives.is_empty());
     }
 
     #[test]
     fn test_yaml_serialization() {
-        let decorators = CndDecorators {
+        let decorators = SpytialDecorators {
             constraints: vec![
                 Constraint::Orientation(OrientationConstraint {
                     orientation: OrientationParams {

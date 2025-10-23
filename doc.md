@@ -18,12 +18,12 @@ Unlike dynamically-typed languages that can discover types and metadata at runti
 
 ### How It Works
 
-#### 1. The `CndDecorators` Derive Macro
+#### 1. The `SpytialDecorators` Derive Macro
 
-The core mechanism is the `#[derive(CndDecorators)]` procedural macro, which:
+The core mechanism is the `#[derive(SpytialDecorators)]` procedural macro, which:
 
 ```rust
-#[derive(Serialize, CndDecorators)]
+#[derive(Serialize, SpytialDecorators)]
 #[attribute(field = "name")]
 #[flag(name = "important")]
 struct Company {
@@ -36,7 +36,7 @@ When the compiler processes this derive macro:
 
 1. **Attribute Parsing**: The macro scans all `#[attribute(...)]`, `#[flag(...)]`, and other CnD-specific attributes on the struct
 2. **Field Type Walking**: It recursively analyzes all field types to discover nested structures
-3. **Code Generation**: It generates an implementation of the `HasCndDecorators` trait that returns all decorators
+3. **Code Generation**: It generates an implementation of the `HasSpytialDecorators` trait that returns all decorators
 
 #### 2. Type Tree Walking Algorithm
 
@@ -65,9 +65,9 @@ The macro's type-walking algorithm:
 
 ```rust
 // Generated code conceptually looks like:
-impl HasCndDecorators for Company {
-    fn decorators() -> CndDecorators {
-        CndDecoratorsBuilder::new()
+impl HasSpytialDecorators for Company {
+    fn decorators() -> SpytialDecorators {
+        SpytialDecoratorsBuilder::new()
             .attribute("name", None)
             .include_decorators_from_type::<Person>()  // ← Auto-generated
             .build()
@@ -120,7 +120,7 @@ pub struct JsonDataSerializer {
     counter: usize,
     atoms: Vec<IAtom>,              // Collected atoms
     relations: HashMap<String, IRelation>,  // Collected relations
-    collected_decorators: CndDecorators,    // Decorators from visited types
+    collected_decorators: SpytialDecorators,    // Decorators from visited types
     visited_types: HashSet<String>,         // Prevent duplicate collection
 }
 ```
@@ -239,8 +239,8 @@ Export.rs (Custom Serializer):
 
 **Problem**: Can't implement external traits for external types
 
-**Solution**: The `HasCndDecorators` trait is local
-- User types opt-in via `#[derive(CndDecorators)]`
+**Solution**: The `HasSpytialDecorators` trait is local
+- User types opt-in via `#[derive(SpytialDecorators)]`
 - Only works for types in the same crate or types that derive the macro
 - Can't add decorators to `String` or `Vec<T>` directly
 
@@ -270,8 +270,8 @@ Export.rs (Custom Serializer):
 In statically-typed languages, we need explicit registration:
 
 ```rust
-impl HasCndDecorators for Company {
-    fn decorators() -> CndDecorators {
+impl HasSpytialDecorators for Company {
+    fn decorators() -> SpytialDecorators {
         // Register on first call
         static REGISTRATION: std::sync::Once = std::sync::Once::new();
         REGISTRATION.call_once(|| {
@@ -287,7 +287,7 @@ impl HasCndDecorators for Company {
 
 This pattern:
 - Uses `std::sync::Once` for thread-safe one-time initialization
-- Registers decorators in a global `HashMap<String, CndDecorators>`
+- Registers decorators in a global `HashMap<String, SpytialDecorators>`
 - Allows later lookup by type name during serialization
 
 ---
@@ -318,7 +318,7 @@ struct Data {
 **Pattern**: Each field becomes its own relation named after the field
 
 ```rust
-#[derive(Serialize, CndDecorators)]
+#[derive(Serialize, SpytialDecorators)]
 #[attribute(field = "name")]
 struct Person {
     name: String,
@@ -585,7 +585,7 @@ The Rust integration with CnD demonstrates how static typing and lack of reflect
 
 1. **Compile-Time Analysis**: Procedural macros walk the type tree at compile time, generating decorator collection code
 2. **Serialization as Structure Discovery**: Serde provides the hook into data structure traversal
-3. **Explicit Opt-In**: Types must derive `CndDecorators` - no global reflection
+3. **Explicit Opt-In**: Types must derive `SpytialDecorators` - no global reflection
 4. **Registration Pattern**: Thread-safe one-time registration via `std::sync::Once`
 5. **Semantic Preservation**: Different collection types use different relationalization patterns
 6. **Type Safety**: The compiler ensures all references are valid

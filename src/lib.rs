@@ -4,7 +4,7 @@ pub mod cnd_annotations;
 
 pub use export::export_json_instance;
 // Re-export the derive macro for spatial annotations
-pub use caraspace_export_macros::CndDecorators;
+pub use caraspace_export_macros::SpytialDecorators;
 use serde::Serialize;
 use std::env;
 use std::fs;
@@ -16,23 +16,23 @@ use std::process::Command;
 /// decorators from all nested types without requiring manual registration.
 ///
 /// ## How it works:
-/// 1. **Compile-time analysis**: The `#[derive(CndDecorators)]` macro analyzes the type tree
+/// 1. **Compile-time analysis**: The `#[derive(SpytialDecorators)]` macro analyzes the type tree
 /// 2. **Automatic inclusion**: Decorators from nested types are automatically included
 /// 3. **Single call**: Just call `diagram(&your_struct)` - no registration needed
 ///
 /// ## Example:
 /// ```rust
 /// use serde::Serialize;
-/// use json_data_instance_export::{diagram, CndDecorators};
+/// use json_data_instance_export::{diagram, SpytialDecorators};
 ///
-/// #[derive(Serialize, CndDecorators)]
+/// #[derive(Serialize, SpytialDecorators)]
 /// #[attribute(field = "name")]
 /// struct Company {
 ///     name: String,
 ///     employees: Vec<Person>,  // Person's decorators automatically included
 /// }
 ///
-/// #[derive(Serialize, CndDecorators)]
+/// #[derive(Serialize, SpytialDecorators)]
 /// #[attribute(field = "age")]
 /// struct Person {
 ///     name: String,
@@ -42,7 +42,7 @@ use std::process::Command;
 /// let company = Company { /* ... */ };
 /// diagram(&company);  // Shows decorators from both Company AND Person
 /// ```
-pub fn diagram<T: cnd_annotations::HasCndDecorators + Serialize>(value: &T) {
+pub fn diagram<T: cnd_annotations::HasSpytialDecorators + Serialize>(value: &T) {
     let cnd_spec = collect_cnd_spec_for_diagram(value);
     diagram_impl(value, &cnd_spec);
 }
@@ -52,7 +52,7 @@ pub fn diagram<T: cnd_annotations::HasCndDecorators + Serialize>(value: &T) {
 /// With the new compile-time system, calling `T::decorators()` returns decorators
 /// from the type itself AND all nested types that have decorators. This eliminates
 /// the need for complex runtime type discovery and registration.
-fn collect_cnd_spec_for_diagram<T: cnd_annotations::HasCndDecorators + Serialize>(_value: &T) -> String {
+fn collect_cnd_spec_for_diagram<T: cnd_annotations::HasSpytialDecorators + Serialize>(_value: &T) -> String {
     println!("🔍 Assembling CnD spec with compile-time decorator collection...");
     
     // The magic happens here: T::decorators() includes ALL decorators 

@@ -1,8 +1,8 @@
-use json_data_instance_export::{diagram, CndDecorators};
+use json_data_instance_export::{diagram, SpytialDecorators};
 use serde::Serialize;
 
 
-#[derive(Serialize, CndDecorators, Debug)]
+#[derive(Serialize, SpytialDecorators, Debug)]
 #[attribute(field = "name")]
 #[flag(name="hideDisconnected")]
 struct Company {
@@ -12,7 +12,7 @@ struct Company {
 
 /// Person type with decorators that will be automatically
 /// included when processing any type that contains Person fields.
-#[derive(Serialize, CndDecorators, Debug)]
+#[derive(Serialize, SpytialDecorators, Debug)]
 #[attribute(field = "age")]
 struct Person {
     name: String,

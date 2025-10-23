@@ -1,15 +1,15 @@
-use json_data_instance_export::{diagram, CndDecorators};
+use json_data_instance_export::{diagram, SpytialDecorators};
 use serde::Serialize;
 
 
-#[derive(Serialize, CndDecorators)]
+#[derive(Serialize, SpytialDecorators)]
 struct RBTree {
     root: Option<Box<RBNode>>,
 }
 
 /// RBNode in the red-black tree with decorators that will be automatically
 /// included when processing any type that contains RBNode fields.
-#[derive(Serialize, CndDecorators)]
+#[derive(Serialize, SpytialDecorators)]
 #[attribute(field = "key")]
 #[attribute(field = "color")]
 #[orientation(selector="{x, y : RBNode | x->y in left}", directions=["left", "below"])]
@@ -25,8 +25,8 @@ struct RBNode {
 }
 
 /// Color of a node in the red-black tree
-/// Deriving CndDecorators on enums is supported - they just have empty decorators
-#[derive(Serialize, CndDecorators, Debug, Clone, Copy)]
+/// Deriving SpytialDecorators on enums is supported - they just have empty decorators
+#[derive(Serialize, SpytialDecorators, Debug, Clone, Copy)]
 enum Color {
     Red,
     Black,

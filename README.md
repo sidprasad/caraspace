@@ -6,13 +6,13 @@ Spytial / CnD  for rust
 
 Uses **procedural macro analysis** to walk the entire type tree at compile time:
 
-1. **Field Analysis**: The `CndDecorators` derive macro analyzes all fields in your struct
+1. **Field Analysis**: The `SpytialDecorators` derive macro analyzes all fields in your struct
 2. **Type Tree Walking**: For each field, it recursively analyzes the type:
    - `Vec<T>` → analyzes `T`
    - `Option<T>` → analyzes `T` 
    - `Box<T>` → analyzes `T`
    - Direct types → analyzes the type itself
-3. **Decorator Collection**: For each discovered type that implements `HasCndDecorators`, it generates code to include those decorators
+3. **Decorator Collection**: For each discovered type that implements `HasSpytialDecorators`, it generates code to include those decorators
 
 ## Library Structure
 

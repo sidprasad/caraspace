@@ -122,10 +122,10 @@ fn generate_decorator_call_for_type(type_name: &str) -> proc_macro2::TokenStream
     }
 }
 
-/// Derive macro for implementing HasCndDecorators trait
+/// Derive macro for implementing HasSpytialDecorators trait
 /// 
 /// This macro analyzes all spatial annotation attributes on a struct
-/// and generates a single implementation of HasCndDecorators that includes
+/// and generates a single implementation of HasSpytialDecorators that includes
 /// all the annotations.
 /// 
 /// # Supported Attributes
@@ -148,9 +148,9 @@ fn generate_decorator_call_for_type(type_name: &str) -> proc_macro2::TokenStream
 /// # Example
 /// ```rust
 /// use serde::Serialize;
-/// use json_data_instance_export::CndDecorators;
+/// use json_data_instance_export::SpytialDecorators;
 /// 
-/// #[derive(Serialize, CndDecorators)]
+/// #[derive(Serialize, SpytialDecorators)]
 /// #[attribute(field = "name")]
 /// #[flag(name = "important")]
 /// struct Person {
@@ -158,8 +158,8 @@ fn generate_decorator_call_for_type(type_name: &str) -> proc_macro2::TokenStream
 ///     age: u32,
 /// }
 /// ```
-#[proc_macro_derive(CndDecorators, attributes(attribute, flag, orientation, align, cyclic, group, atom_color, size, icon, edge_color, projection, hide_field, hide_atom, inferred_edge))]
-pub fn derive_cnd_decorators(input: TokenStream) -> TokenStream {
+#[proc_macro_derive(SpytialDecorators, attributes(attribute, flag, orientation, align, cyclic, group, atom_color, size, icon, edge_color, projection, hide_field, hide_atom, inferred_edge))]
+pub fn derive_spytial_decorators(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     
     let name = &input.ident;
@@ -268,14 +268,14 @@ pub fn derive_cnd_decorators(input: TokenStream) -> TokenStream {
     // Combine own decorators with field type decorators
     decorator_calls.extend(field_type_decorators);
 
-    // Generate the HasCndDecorators implementation
+    // Generate the HasSpytialDecorators implementation
     let expanded = quote! {
-        impl #impl_generics json_data_instance_export::cnd_annotations::HasCndDecorators for #name #ty_generics #where_clause {
-            fn decorators() -> json_data_instance_export::cnd_annotations::CndDecorators {
+        impl #impl_generics json_data_instance_export::cnd_annotations::HasSpytialDecorators for #name #ty_generics #where_clause {
+            fn decorators() -> json_data_instance_export::cnd_annotations::SpytialDecorators {
                 // Register this type automatically when decorators() is called
                 static REGISTRATION: ::std::sync::Once = ::std::sync::Once::new();
                 REGISTRATION.call_once(|| {
-                    let decorators = json_data_instance_export::cnd_annotations::CndDecoratorsBuilder::new()
+                    let decorators = json_data_instance_export::cnd_annotations::SpytialDecoratorsBuilder::new()
                         #(#decorator_calls)*
                         .build();
                     json_data_instance_export::cnd_annotations::register_type_decorators(
@@ -284,7 +284,7 @@ pub fn derive_cnd_decorators(input: TokenStream) -> TokenStream {
                     );
                 });
 
-                json_data_instance_export::cnd_annotations::CndDecoratorsBuilder::new()
+                json_data_instance_export::cnd_annotations::SpytialDecoratorsBuilder::new()
                     #(#decorator_calls)*
                     .build()
             }
