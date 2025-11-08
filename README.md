@@ -1,6 +1,6 @@
 # CaraSpace
 
-Spytial / CnD  for rust
+Spytial for Rust
 
 ## How Compile-Time Annotation Collection Works
 
@@ -22,7 +22,7 @@ src/
 ├── export.rs                 # JSON serialization with type information
 ├── jsondata.rs               # Custom JSON data structures
 └── spytial_annotations/
-    ├── mod.rs                # CnD decorator system
+    ├── mod.rs                # SpyTial decorator system
     └── runtime.rs            # Runtime builder with compile-time support
 
 macros/
@@ -35,7 +35,7 @@ macros/
 ### Core Functions
 
 - `diagram<T>(value: &T)` - Create visualization with automatic decorator collection
-- `diagram_with_spec<T>(value: &T, cnd_spec: &str)` - Create visualization with custom CnD spec (sort of an escape hatch)
+- `diagram_with_spec<T>(value: &T, cnd_spec: &str)` - Create visualization with custom SpyTial spec (sort of an escape hatch)
 
 ### Decorator Attributes
 

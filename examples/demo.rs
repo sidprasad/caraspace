@@ -27,7 +27,7 @@ fn main() {
             Person { name: "Bob".to_string(), age: 25 },
         ],
     };
-    // So the debug trait works sort of like we want CnD to work in terms of
+    // So the debug trait works sort of like we want SpyTial to work in terms of
     // serialization.
     println!("{company:#?}");
 

@@ -1,6 +1,6 @@
-//! # CnD Annotations
+//! # SpyTial Annotations
 //!
-//! A runtime annotation system for CnD spatial layout and visualization.
+//! A runtime annotation system for SpyTial spatial layout and visualization.
 //! Provides runtime instance annotations, builder patterns for type-level 
 //! annotations, and YAML serialization.
 

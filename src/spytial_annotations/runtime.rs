@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use once_cell::sync::Lazy;
 
-/// Main structure containing all CnD decorators for a type or instance
+/// Main structure containing all SpyTial decorators for a type or instance
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SpytialDecorators {
     pub constraints: Vec<Constraint>,
@@ -205,9 +205,9 @@ pub struct FlagDirective {
     pub flag: String,
 }
 
-/// Trait implemented by structs with CnD decorators
+/// Trait implemented by structs with SpyTial decorators
 /// All types have a default implementation that returns empty decorators
-/// Trait implemented by structs with CnD decorators
+/// Trait implemented by structs with SpyTial decorators
 pub trait HasSpytialDecorators {
     fn decorators() -> SpytialDecorators;
 }
@@ -223,13 +223,13 @@ static INSTANCE_ID_COUNTER: Lazy<Mutex<usize>> = Lazy::new(|| Mutex::new(0));
 static TYPE_REGISTRY: Lazy<Mutex<HashMap<String, SpytialDecorators>>> = 
     Lazy::new(|| Mutex::new(HashMap::new()));
 
-/// Register CnD decorators for a type (used by procedural macros)
+/// Register SpyTial decorators for a type (used by procedural macros)
 pub fn register_type_decorators(type_name: &str, decorators: SpytialDecorators) {
     let mut registry = TYPE_REGISTRY.lock().unwrap();
     registry.insert(type_name.to_string(), decorators);
 }
 
-/// Get CnD decorators for a type by name
+/// Get SpyTial decorators for a type by name
 /// Get decorators for a specific type, if registered
 pub fn get_type_decorators(type_name: &str) -> Option<SpytialDecorators> {
     let registry = TYPE_REGISTRY.lock().unwrap();

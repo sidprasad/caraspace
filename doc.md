@@ -1,6 +1,6 @@
-# CnD Integration with Rust: A Comprehensive Guide
+# SpyTial Integration with Rust: A Comprehensive Guide
 
-This document provides a detailed explanation of how Compile-and-Debug (CnD) integrates with Rust, highlighting the unique approaches required for statically-typed languages.
+This document provides a detailed explanation of how SpyTial integrates with Rust, highlighting the unique approaches required for statically-typed languages.
 
 ## Table of Contents
 1. [Compile-Time Annotation Collection](#compile-time-annotation-collection)
@@ -34,7 +34,7 @@ struct Company {
 
 When the compiler processes this derive macro:
 
-1. **Attribute Parsing**: The macro scans all `#[attribute(...)]`, `#[flag(...)]`, and other CnD-specific attributes on the struct
+1. **Attribute Parsing**: The macro scans all `#[attribute(...)]`, `#[flag(...)]`, and other SpyTial-specific attributes on the struct
 2. **Field Type Walking**: It recursively analyzes all field types to discover nested structures
 3. **Code Generation**: It generates an implementation of the `HasSpytialDecorators` trait that returns all decorators
 
@@ -146,7 +146,7 @@ When you call `diagram(&company)`:
 
 The key insight is that **Serde's trait methods tell us about structure**:
 
-| Serde Method | Structural Meaning | CnD Output |
+| Serde Method | Structural Meaning | SpyTial Output |
 |--------------|-------------------|------------|
 | `serialize_struct(name, len)` | Named struct with fields | Atom of type `name`, field relations |
 | `serialize_seq(len)` | Ordered collection | Atom of type "sequence", `idx` relations |
@@ -351,7 +351,7 @@ struct Person {
 
 **Why this pattern?**
 - Field names have semantic meaning (not just "field_0", "field_1")
-- Enables field-specific CnD rules: `name: position: as_label`
+- Enables field-specific SpyTial rules: `name: position: as_label`
 - Supports querying by relationship: "find all names", "find all ages"
 
 **Decorator Collection**: Triggered when `serialize_struct("Person", ...)` is called
@@ -388,7 +388,7 @@ struct Company {
 **Why this pattern?**
 - Preserves O(1) positional access semantics
 - Index is meaningful: first employee, second employee, etc.
-- Enables grid layouts, ordinal positioning in CnD
+- Enables grid layouts, ordinal positioning in SpyTial
 
 **Decorator Collection**: For `Vec<Person>`, the macro extracts `Person` and generates a call to collect its decorators
 
@@ -581,7 +581,7 @@ struct Organization {
 
 ## Conclusion
 
-The Rust integration with CnD demonstrates how static typing and lack of reflection require fundamentally different approaches:
+The Rust integration with SpyTial demonstrates how static typing and lack of reflection require fundamentally different approaches:
 
 1. **Compile-Time Analysis**: Procedural macros walk the type tree at compile time, generating decorator collection code
 2. **Serialization as Structure Discovery**: Serde provides the hook into data structure traversal

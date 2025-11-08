@@ -28,7 +28,7 @@
 //! 
 //! ## Visualization Benefits
 //! 
-//! This semantic preservation enables CnD layout specifications that understand
+//! This semantic preservation enables SpyTial layout specifications that understand
 //! the data structure intent:
 //! 
 //! ```yaml
@@ -75,7 +75,7 @@ pub fn export_json_instance<T: Serialize>(value: &T) -> JsonDataInstance {
     }
 }
 
-/// Export a Rust data structure and collect CnD decorators from all encountered types
+/// Export a Rust data structure and collect SpyTial decorators from all encountered types
 /// Excludes the root type from collection to avoid double-counting
 pub fn export_json_instance_with_decorators<T: Serialize>(value: &T, root_type_name: &str) -> (JsonDataInstance, SpytialDecorators) {
     let mut serializer = JsonDataSerializer::new();
@@ -358,7 +358,7 @@ impl<'a> Serializer for &'a mut JsonDataSerializer {
     /// **Relationalization**: `idx(container_id, position_string, element_id)`
     /// - Position is serialized as string for consistency with other relation keys
     /// - Preserves O(1) access semantics in the relational model
-    /// - Enables CnD layouts based on sequential positioning
+    /// - Enables SpyTial layouts based on sequential positioning
     /// 
     /// **Example**: `vec![1, 2, 3]` becomes:
     /// ```
@@ -475,7 +475,7 @@ impl<'a> Serializer for &'a mut JsonDataSerializer {
     /// - Preserves associative lookup semantics: key → value
     /// - Keys and values are full atoms (can be complex types)
     /// - No ordering implied (even for BTreeMap, since iteration order ≠ access semantics)
-    /// - Enables CnD layouts focused on key-value relationships
+    /// - Enables SpyTial layouts focused on key-value relationships
     /// 
     /// **Design Note**: We distinguish this from struct fields because:
     /// - Map keys are data (computed at runtime)
@@ -507,13 +507,13 @@ impl<'a> Serializer for &'a mut JsonDataSerializer {
     /// - Each field becomes its own relation type
     /// - Struct type name is used as the atom type (not generic "struct")
     /// - Enables direct semantic querying: "find all names", "find all ages"
-    /// - Supports CnD layouts that understand field semantics
+    /// - Supports SpyTial layouts that understand field semantics
     /// 
     /// **Design Rationale**:
     /// - Struct fields are compile-time metadata with semantic meaning
     /// - Field names like "position", "velocity", "color" have domain significance
     /// - Unlike map keys (runtime data) or array indices (positional data)
-    /// - Allows field-specific visualization rules in CnD specs
+    /// - Allows field-specific visualization rules in SpyTial specs
     /// 
     /// **Example**: `Person { name: "Alice", age: 30 }` becomes:
     /// ```
@@ -521,7 +521,7 @@ impl<'a> Serializer for &'a mut JsonDataSerializer {
     /// age:  ["person_id", "thirty_int"] -> ["Person", "i32"]
     /// ```
     /// 
-    /// This enables CnD rules like:
+    /// This enables SpyTial rules like:
     /// ```yaml
     /// name: 
     ///   - position: as_label
