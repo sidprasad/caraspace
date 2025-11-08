@@ -91,7 +91,7 @@ fn analyze_inner_type(ty: &Type, seen_types: &mut std::collections::HashSet<Stri
     Vec::new()
 }
 
-/// Check if a type name is likely to have CnD decorators
+/// Check if a type name is likely to have SpyTial decorators
 /// This is a heuristic - we look for non-primitive types
 fn is_likely_decorated_type(type_name: &str) -> bool {
     match type_name {
