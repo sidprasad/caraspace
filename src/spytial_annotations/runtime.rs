@@ -357,7 +357,6 @@ pub fn auto_register_related_types<T: HasSpytialDecorators + Serialize>() {
     // Always register the root type
     let _ = T::decorators();
     
-    // TODO: Add reflection-based discovery of field types
     // For now, users still need to manually register, but this provides a cleaner API
 }
 
