@@ -1,23 +1,23 @@
 //! # Semantic-Aware Rust Data Export to Relational JSON
-//! 
+//!
 //! This module implements a custom Serde serializer that preserves the semantic
 //! distinctions between different Rust data structures, going beyond generic JSON
 //! to create rich relational representations suitable for graph visualization.
-//! 
+//!
 //! ## Core Design Philosophy
-//! 
+//!
 //! **Problem**: Standard JSON serialization loses semantic information:
-//! - Structs and Maps both become `{"key": "value"}` 
+//! - Structs and Maps both become `{"key": "value"}`
 //! - Arrays and Tuples both become `[item1, item2]`
 //! - No distinction between positional vs associative vs named access patterns
-//! 
+//!
 //! **Solution**: Use Serde's semantic entry points to preserve collection intent:
 //! - `serialize_struct` vs `serialize_map` - different access semantics  
 //! - `serialize_seq` vs `serialize_tuple` - different position meanings
 //! - Field names vs map keys vs array indices - different relationship types
-//! 
+//!
 //! ## Relationalization Patterns
-//! 
+//!
 //! | Rust Type | Relation Pattern | Reasoning |
 //! |-----------|------------------|-----------|
 //! | `struct Foo { x: T }` | `x(foo_instance, value)` | Field names are semantic roles |
@@ -25,31 +25,31 @@
 //! | `(T1, T2, T3)` | `idx(tuple, "0", elem)` | Fixed positional semantics |
 //! | `HashMap<K,V>` | `map_entry(map, key, val)` | Associative key→value lookup |
 //! | `Point(x, y)` | `idx(point, "0", x_coord)` | Named but positional fields |
-//! 
+//!
 //! ## Visualization Benefits
-//! 
+//!
 //! This semantic preservation enables SpyTial layout specifications that understand
 //! the data structure intent:
-//! 
+//!
 //! ```yaml
 //! # Position arrays in grid layout
-//! idx: 
+//! idx:
 //!   - when: tuple[0].type == "sequence"  
 //!     position: grid_layout
-//! 
+//!
 //! # Use struct field semantics for labeling
 //! name:
 //!   - position: as_label
-//! position: 
+//! position:
 //!   - layout: coordinate_system
-//! 
+//!
 //! # Maps get key-value pair layout
 //! map_entry:
 //!   - layout: association_arrows
 //! ```
-//! 
+//!
 //! ## Type System Integration
-//! 
+//!
 //! - **Struct names** become atom types (not generic "struct")
 //! - **Primitive types** preserved exactly (`i32`, `f64`, `string`)
 //! - **Collection types** use semantic names (`sequence`, `tuple`, `map`)
@@ -57,11 +57,11 @@
 
 use crate::jsondata::*;
 use crate::spytial_annotations::SpytialDecorators;
-use serde::ser::{
-    Serialize, SerializeMap, SerializeSeq, SerializeStruct, SerializeStructVariant,
-    SerializeTuple, SerializeTupleStruct, SerializeTupleVariant, Serializer,
-};
 use serde::ser;
+use serde::ser::{
+    Serialize, SerializeMap, SerializeSeq, SerializeStruct, SerializeStructVariant, SerializeTuple,
+    SerializeTupleStruct, SerializeTupleVariant, Serializer,
+};
 use std::collections::HashMap;
 use std::fmt;
 
@@ -77,7 +77,10 @@ pub fn export_json_instance<T: Serialize>(value: &T) -> JsonDataInstance {
 
 /// Export a Rust data structure and collect SpyTial decorators from all encountered types
 /// Excludes the root type from collection to avoid double-counting
-pub fn export_json_instance_with_decorators<T: Serialize>(value: &T, root_type_name: &str) -> (JsonDataInstance, SpytialDecorators) {
+pub fn export_json_instance_with_decorators<T: Serialize>(
+    value: &T,
+    root_type_name: &str,
+) -> (JsonDataInstance, SpytialDecorators) {
     let mut serializer = JsonDataSerializer::new();
     serializer.exclude_type = Some(root_type_name.to_string());
     value.serialize(&mut serializer).unwrap();
@@ -97,7 +100,7 @@ pub struct JsonDataSerializer {
     visited_types: std::collections::HashSet<String>,
     exclude_type: Option<String>,
     /// Cache for singleton atoms (like None, unit, etc.) that should be reused
-    singleton_atoms: HashMap<(String, String), String>,  // (type, label) -> atom_id
+    singleton_atoms: HashMap<(String, String), String>, // (type, label) -> atom_id
 }
 
 impl JsonDataSerializer {
@@ -133,11 +136,11 @@ impl JsonDataSerializer {
     /// (like None, unit, true, false, etc.)
     fn get_or_create_singleton(&mut self, typ: &str, label: &str) -> String {
         let key = (typ.to_string(), label.to_string());
-        
+
         if let Some(existing_id) = self.singleton_atoms.get(&key) {
             return existing_id.clone();
         }
-        
+
         // Create new singleton atom
         let id = self.emit_atom(typ, label);
         self.singleton_atoms.insert(key, id.clone());
@@ -146,7 +149,10 @@ impl JsonDataSerializer {
 
     fn push_relation(&mut self, name: &str, atoms: Vec<String>, types: Vec<&str>) {
         let types: Vec<String> = types.iter().map(|s| s.to_string()).collect();
-        let tuple = ITuple { atoms, types: types.clone() };
+        let tuple = ITuple {
+            atoms,
+            types: types.clone(),
+        };
 
         let rel = self.relations.entry(name.to_string()).or_insert(IRelation {
             id: name.to_string(),
@@ -166,7 +172,7 @@ impl JsonDataSerializer {
                 return;
             }
         }
-        
+
         // Only collect decorators once per type to avoid duplicates
         if self.visited_types.contains(type_name) {
             return;
@@ -176,22 +182,32 @@ impl JsonDataSerializer {
         // First, try to get already-registered decorators
         if let Some(type_decorators) = crate::spytial_annotations::get_type_decorators(type_name) {
             // Merge the decorators into our collected set
-            self.collected_decorators.constraints.extend(type_decorators.constraints);
-            self.collected_decorators.directives.extend(type_decorators.directives);
+            self.collected_decorators
+                .constraints
+                .extend(type_decorators.constraints);
+            self.collected_decorators
+                .directives
+                .extend(type_decorators.directives);
             return;
         }
-        
+
         // If not found, try to trigger registration by calling known decorated type methods
         // This is a heuristic approach: we try to trigger registration for common patterns
         if self.try_trigger_registration(type_name) {
             // After triggering, try to get decorators again
-            if let Some(type_decorators) = crate::spytial_annotations::get_type_decorators(type_name) {
-                self.collected_decorators.constraints.extend(type_decorators.constraints);
-                self.collected_decorators.directives.extend(type_decorators.directives);
+            if let Some(type_decorators) =
+                crate::spytial_annotations::get_type_decorators(type_name)
+            {
+                self.collected_decorators
+                    .constraints
+                    .extend(type_decorators.constraints);
+                self.collected_decorators
+                    .directives
+                    .extend(type_decorators.directives);
             }
         }
     }
-    
+
     /// Attempt to trigger registration for a type name by trying common patterns
     /// This is a heuristic approach that works for types that are already linked
     fn try_trigger_registration(&self, _type_name: &str) -> bool {
@@ -199,7 +215,7 @@ impl JsonDataSerializer {
         // For now, we'll rely on the fact that calling decorators() on any decorated type
         // should register that type. But since we can't call trait methods by string name,
         // this is limited.
-        
+
         // This is where we could add specific registration calls for common types
         // or use a more sophisticated discovery mechanism
         false
@@ -330,7 +346,11 @@ impl<'a> Serializer for &'a mut JsonDataSerializer {
     ) -> Result<Self::Ok, Self::Error> {
         let struct_id = self.emit_atom("newtype_struct", name);
         let inner_id = value.serialize(&mut *self)?;
-        self.push_relation("value", vec![struct_id.clone(), inner_id], vec!["newtype_struct", "atom"]);
+        self.push_relation(
+            "value",
+            vec![struct_id.clone(), inner_id],
+            vec!["newtype_struct", "atom"],
+        );
         Ok(struct_id)
     }
 
@@ -343,25 +363,29 @@ impl<'a> Serializer for &'a mut JsonDataSerializer {
     ) -> Result<Self::Ok, Self::Error> {
         let variant_id = self.emit_atom(enum_name, variant);
         let inner_id = value.serialize(&mut *self)?;
-        self.push_relation("variant_value", vec![variant_id.clone(), inner_id], vec![enum_name, "atom"]);
+        self.push_relation(
+            "variant_value",
+            vec![variant_id.clone(), inner_id],
+            vec![enum_name, "atom"],
+        );
         Ok(variant_id)
     }
 
     /// ## INDEXABLE SEQUENCES - `idx(container, position, element)`
-    /// 
+    ///
     /// **Decision**: Use positional indexing for collections with stable, meaningful positions
     /// and O(1) random access semantics. These are the "array-like" collections where position
     /// is intrinsic to the data structure's semantics.
-    /// 
+    ///
     /// **Covers**: `Vec<T>`, `[T; N]`, slices, `VecDeque<T>` (when used as indexed container)
-    /// 
+    ///
     /// **Relationalization**: `idx(container_id, position_string, element_id)`
     /// - Position is serialized as string for consistency with other relation keys
     /// - Preserves O(1) access semantics in the relational model
     /// - Enables SpyTial layouts based on sequential positioning
-    /// 
+    ///
     /// **Example**: `vec![1, 2, 3]` becomes:
-    /// ```
+    /// ```text
     /// idx: ["vec_id", "0", "elem1"] -> ["sequence", "index", "i32"]
     /// idx: ["vec_id", "1", "elem2"] -> ["sequence", "index", "i32"]  
     /// idx: ["vec_id", "2", "elem3"] -> ["sequence", "index", "i32"]
@@ -376,19 +400,19 @@ impl<'a> Serializer for &'a mut JsonDataSerializer {
     }
 
     /// ## HETEROGENEOUS TUPLES - `idx(container, position, element)`
-    /// 
+    ///
     /// **Decision**: Use positional indexing for tuples since they have fixed arity and
     /// heterogeneous types where position has semantic meaning (like coordinates, pairs).
-    /// 
+    ///
     /// **Covers**: `(T1, T2, ...)`, `std::tuple` types
-    /// 
+    ///
     /// **Relationalization**: Same as sequences but with "tuple" type
     /// - Position maps to semantic roles (0=x, 1=y for coordinates)
     /// - Fixed arity known at compile time
     /// - Heterogeneous element types preserved
-    /// 
+    ///
     /// **Example**: `("hello", 42, true)` becomes:
-    /// ```
+    /// ```text
     /// idx: ["tuple_id", "0", "string_id"] -> ["tuple", "index", "string"]
     /// idx: ["tuple_id", "1", "int_id"]    -> ["tuple", "index", "i32"]
     /// idx: ["tuple_id", "2", "bool_id"]   -> ["tuple", "index", "bool"]
@@ -403,19 +427,19 @@ impl<'a> Serializer for &'a mut JsonDataSerializer {
     }
 
     /// ## TUPLE STRUCTS - `idx(container, position, element)`
-    /// 
+    ///
     /// **Decision**: Use positional indexing for tuple structs since they combine
     /// the naming of structs with the positional semantics of tuples.
-    /// 
+    ///
     /// **Covers**: `struct Point(f64, f64)`, `struct Color(u8, u8, u8, u8)`
-    /// 
+    ///
     /// **Relationalization**: Same pattern as tuples but with struct name as type
     /// - Preserves positional access semantics
     /// - Named type for better semantic understanding
     /// - Common for coordinate types, newtype wrappers with multiple fields
-    /// 
+    ///
     /// **Example**: `Point(3.14, 2.71)` becomes:
-    /// ```
+    /// ```text
     /// idx: ["point_id", "0", "x_coord"] -> ["Point", "index", "f64"]
     /// idx: ["point_id", "1", "y_coord"] -> ["Point", "index", "f64"]
     /// ```
@@ -433,18 +457,18 @@ impl<'a> Serializer for &'a mut JsonDataSerializer {
     }
 
     /// ## ENUM TUPLE VARIANTS - `idx(container, position, element)`
-    /// 
+    ///
     /// **Decision**: Enum variants with tuple-like data use positional indexing
     /// since they represent choice + positional data.
-    /// 
+    ///
     /// **Covers**: `enum Event { Move(f64, f64), Resize(u32, u32) }`
-    /// 
+    ///
     /// **Relationalization**: Positional access within the variant context
     /// - Enum variant acts as container for positional elements
     /// - Preserves both choice semantics (which variant) and position semantics
-    /// 
+    ///
     /// **Example**: `Event::Move(1.0, 2.0)` becomes:
-    /// ```
+    /// ```text
     /// idx: ["move_variant", "0", "x_val"] -> ["enum_variant", "index", "f64"]
     /// idx: ["move_variant", "1", "y_val"] -> ["enum_variant", "index", "f64"]
     /// ```
@@ -465,25 +489,25 @@ impl<'a> Serializer for &'a mut JsonDataSerializer {
     }
 
     /// ## KEY-VALUE MAPS - `map_entry(map, key, value)`
-    /// 
+    ///
     /// **Decision**: Use ternary relations for associative containers since the
     /// key-value relationship is the fundamental semantic operation.
-    /// 
+    ///
     /// **Covers**: `HashMap<K,V>`, `BTreeMap<K,V>`, `IndexMap<K,V>`
-    /// 
+    ///
     /// **Relationalization**: `map_entry(container_id, key_id, value_id)`
     /// - Preserves associative lookup semantics: key → value
     /// - Keys and values are full atoms (can be complex types)
     /// - No ordering implied (even for BTreeMap, since iteration order ≠ access semantics)
     /// - Enables SpyTial layouts focused on key-value relationships
-    /// 
+    ///
     /// **Design Note**: We distinguish this from struct fields because:
     /// - Map keys are data (computed at runtime)
     /// - Struct field names are metadata (known at compile time)
     /// - Maps support dynamic key sets, structs have fixed field sets
-    /// 
+    ///
     /// **Example**: `{"name": "Alice", "age": 30}` becomes:
-    /// ```
+    /// ```text
     /// map_entry: ["map_id", "name_key", "alice_val"] -> ["map", "string", "string"]
     /// map_entry: ["map_id", "age_key", "thirty_val"]  -> ["map", "string", "i32"]
     /// ```
@@ -497,33 +521,33 @@ impl<'a> Serializer for &'a mut JsonDataSerializer {
     }
 
     /// ## NAMED STRUCTS - Field name as relation name
-    /// 
+    ///
     /// **Decision**: Use field names directly as relation names because struct fields
     /// represent semantic roles, not positional data or associative lookups.
-    /// 
+    ///
     /// **Covers**: `struct Person { name: String, age: u32 }`
-    /// 
+    ///
     /// **Relationalization**: `field_name(struct_instance, field_value)`
     /// - Each field becomes its own relation type
     /// - Struct type name is used as the atom type (not generic "struct")
     /// - Enables direct semantic querying: "find all names", "find all ages"
     /// - Supports SpyTial layouts that understand field semantics
-    /// 
+    ///
     /// **Design Rationale**:
     /// - Struct fields are compile-time metadata with semantic meaning
     /// - Field names like "position", "velocity", "color" have domain significance
     /// - Unlike map keys (runtime data) or array indices (positional data)
     /// - Allows field-specific visualization rules in SpyTial specs
-    /// 
+    ///
     /// **Example**: `Person { name: "Alice", age: 30 }` becomes:
-    /// ```
+    /// ```text
     /// name: ["person_id", "alice_str"] -> ["Person", "string"]
     /// age:  ["person_id", "thirty_int"] -> ["Person", "i32"]
     /// ```
-    /// 
+    ///
     /// This enables SpyTial rules like:
     /// ```yaml
-    /// name: 
+    /// name:
     ///   - position: as_label
     /// age:
     ///   - position: bottom_right
@@ -535,11 +559,11 @@ impl<'a> Serializer for &'a mut JsonDataSerializer {
         name: &str,
         _len: usize,
     ) -> Result<Self::SerializeStruct, Self::Error> {
-        let struct_id = self.emit_atom(name, name);  // struct name IS the type
-        
+        let struct_id = self.emit_atom(name, name); // struct name IS the type
+
         // Collect decorators for this struct type
         self.collect_decorators_for_type(name);
-        
+
         Ok(StructSerializer {
             serializer: self,
             struct_id,
@@ -548,18 +572,18 @@ impl<'a> Serializer for &'a mut JsonDataSerializer {
     }
 
     /// ## ENUM STRUCT VARIANTS - Field name as relation name
-    /// 
+    ///
     /// **Decision**: Enum variants with struct-like data use the same field name
     /// pattern as regular structs, since they represent choice + named field data.
-    /// 
+    ///
     /// **Covers**: `enum Shape { Rectangle { width: f64, height: f64 } }`
-    /// 
+    ///
     /// **Relationalization**: Same as structs but with enum_variant as container type
     /// - Preserves both choice semantics (which variant) and field semantics
     /// - Field names retain their semantic meaning within the variant context
-    /// 
+    ///
     /// **Example**: `Shape::Rectangle { width: 10.0, height: 5.0 }` becomes:
-    /// ```
+    /// ```text
     /// width:  ["rect_variant", "ten_val"]  -> ["enum_variant", "f64"]
     /// height: ["rect_variant", "five_val"] -> ["enum_variant", "f64"]
     /// ```
@@ -580,12 +604,12 @@ impl<'a> Serializer for &'a mut JsonDataSerializer {
 }
 
 /// # INDEXABLE SEQUENCE SERIALIZERS
-/// 
+///
 /// These implement the `idx(container, position, element)` relationalization pattern
 /// for collections where position has stable, meaningful semantics.
 
 /// ## Vec<T>, arrays, slices - O(1) indexable collections
-/// 
+///
 /// **Serialization Pattern**: Each element creates an `idx` relation
 /// **Position Encoding**: String representation of 0-based index
 /// **Type Preservation**: Element types preserved as individual atoms
@@ -603,9 +627,9 @@ impl<'a> SerializeSeq for SequenceSerializer<'a> {
         let element_id = value.serialize(&mut *self.serializer)?;
         // idx(container, position, element) for O(1) indexable sequences
         self.serializer.push_relation(
-            "idx", 
-            vec![self.seq_id.clone(), self.index.to_string(), element_id], 
-            vec!["sequence", "index", "atom"]
+            "idx",
+            vec![self.seq_id.clone(), self.index.to_string(), element_id],
+            vec!["sequence", "index", "atom"],
         );
         self.index += 1;
         Ok(())
@@ -631,9 +655,9 @@ impl<'a> SerializeTuple for TupleSerializer<'a> {
         let element_id = value.serialize(&mut *self.serializer)?;
         // Tuples also use idx - fixed positional semantics
         self.serializer.push_relation(
-            "idx", 
-            vec![self.tuple_id.clone(), self.index.to_string(), element_id], 
-            vec!["tuple", "index", "atom"]
+            "idx",
+            vec![self.tuple_id.clone(), self.index.to_string(), element_id],
+            vec!["tuple", "index", "atom"],
         );
         self.index += 1;
         Ok(())
@@ -659,9 +683,9 @@ impl<'a> SerializeTupleStruct for TupleStructSerializer<'a> {
         let field_id = value.serialize(&mut *self.serializer)?;
         // Tuple structs have positional semantics
         self.serializer.push_relation(
-            "idx", 
-            vec![self.struct_id.clone(), self.index.to_string(), field_id], 
-            vec!["tuple_struct", "index", "atom"]
+            "idx",
+            vec![self.struct_id.clone(), self.index.to_string(), field_id],
+            vec!["tuple_struct", "index", "atom"],
         );
         self.index += 1;
         Ok(())
@@ -686,9 +710,9 @@ impl<'a> SerializeTupleVariant for TupleVariantSerializer<'a> {
     fn serialize_field<T: ?Sized + Serialize>(&mut self, value: &T) -> Result<(), Self::Error> {
         let field_id = value.serialize(&mut *self.serializer)?;
         self.serializer.push_relation(
-            "idx", 
-            vec![self.variant_id.clone(), self.index.to_string(), field_id], 
-            vec![&self.variant_type, "index", "atom"]
+            "idx",
+            vec![self.variant_id.clone(), self.index.to_string(), field_id],
+            vec![&self.variant_type, "index", "atom"],
         );
         self.index += 1;
         Ok(())
@@ -700,12 +724,12 @@ impl<'a> SerializeTupleVariant for TupleVariantSerializer<'a> {
 }
 
 /// # KEY-VALUE MAP SERIALIZERS
-/// 
+///
 /// These implement the `map_entry(map, key, value)` relationalization pattern
 /// for associative containers where key-value relationships are fundamental.
 
 /// ## HashMap, BTreeMap - Associative collections  
-/// 
+///
 /// **Serialization Pattern**: Each key-value pair creates a `map_entry` relation
 /// **Key Handling**: Keys are serialized as full atoms (can be complex types)
 /// **Value Handling**: Values are serialized as full atoms (can be complex types)  
@@ -730,9 +754,9 @@ impl<'a> SerializeMap for MapSerializer<'a> {
         if let Some(key_id) = self.key_id.take() {
             // map_entry(map, key, value) for associative collections
             self.serializer.push_relation(
-                "map_entry", 
-                vec![self.map_id.clone(), key_id, value_id], 
-                vec!["map", "atom", "atom"]
+                "map_entry",
+                vec![self.map_id.clone(), key_id, value_id],
+                vec!["map", "atom", "atom"],
             );
         }
         Ok(())
@@ -744,12 +768,12 @@ impl<'a> SerializeMap for MapSerializer<'a> {
 }
 
 /// # STRUCT SERIALIZERS
-/// 
+///
 /// These implement the field-name-as-relation-name pattern for named data structures
 /// where field names carry semantic meaning beyond just data organization.
 
 /// ## Named structs - Semantic field relationships
-/// 
+///
 /// **Serialization Pattern**: Each field creates a relation named after the field
 /// **Type Handling**: Struct name becomes the atom type (not generic "struct")
 /// **Field Semantics**: Field names like "position", "velocity" become relation names
@@ -772,9 +796,9 @@ impl<'a> SerializeStruct for StructSerializer<'a> {
         let field_id = value.serialize(&mut *self.serializer)?;
         // Use field name as relation name: field_name(StructType, value)
         self.serializer.push_relation(
-            key, 
-            vec![self.struct_id.clone(), field_id], 
-            vec![&self.struct_type, "atom"]
+            key,
+            vec![self.struct_id.clone(), field_id],
+            vec![&self.struct_type, "atom"],
         );
         Ok(())
     }
@@ -802,9 +826,9 @@ impl<'a> SerializeStructVariant for StructVariantSerializer<'a> {
         let field_id = value.serialize(&mut *self.serializer)?;
         // Enum struct variants also use field names as relations
         self.serializer.push_relation(
-            key, 
-            vec![self.variant_id.clone(), field_id], 
-            vec![&self.variant_type, "atom"]
+            key,
+            vec![self.variant_id.clone(), field_id],
+            vec![&self.variant_type, "atom"],
         );
         Ok(())
     }

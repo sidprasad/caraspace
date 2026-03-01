@@ -1,7 +1,7 @@
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Mutex;
-use once_cell::sync::Lazy;
 
 /// Main structure containing all SpyTial decorators for a type or instance
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -24,6 +24,7 @@ impl Default for SpytialDecorators {
 #[serde(untagged)]
 pub enum Constraint {
     Orientation(OrientationConstraint),
+    Align(AlignConstraint),
     Cyclic(CyclicConstraint),
     Group(GroupConstraint),
 }
@@ -54,6 +55,17 @@ pub struct OrientationConstraint {
 pub struct OrientationParams {
     pub selector: String,
     pub directions: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct AlignConstraint {
+    pub align: AlignParams,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct AlignParams {
+    pub selector: String,
+    pub direction: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -213,14 +225,14 @@ pub trait HasSpytialDecorators {
 }
 
 /// Global registry for instance-level annotations
-static INSTANCE_REGISTRY: Lazy<Mutex<HashMap<usize, SpytialDecorators>>> = 
+static INSTANCE_REGISTRY: Lazy<Mutex<HashMap<usize, SpytialDecorators>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 
 /// Counter for generating unique instance IDs
 static INSTANCE_ID_COUNTER: Lazy<Mutex<usize>> = Lazy::new(|| Mutex::new(0));
 
 /// Global registry for type-level decorators keyed by type name
-static TYPE_REGISTRY: Lazy<Mutex<HashMap<String, SpytialDecorators>>> = 
+static TYPE_REGISTRY: Lazy<Mutex<HashMap<String, SpytialDecorators>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 
 /// Register SpyTial decorators for a type (used by procedural macros)
@@ -247,52 +259,77 @@ pub struct Annotation {
 pub fn annotate_instance<T>(instance: &mut T, annotation: Annotation) {
     let instance_addr = instance as *const T as usize;
     let mut registry = INSTANCE_REGISTRY.lock().unwrap();
-    
+
     let decorators = registry.entry(instance_addr).or_default();
-    
+
     // Convert annotation to appropriate constraint or directive
     match annotation.annotation_type.as_str() {
         "orientation" => {
             if let (Some(selector), Some(directions)) = (
                 annotation.params.get("selector").and_then(|v| v.as_str()),
-                annotation.params.get("directions").and_then(|v| v.as_array())
+                annotation
+                    .params
+                    .get("directions")
+                    .and_then(|v| v.as_array()),
             ) {
-                let dirs: Vec<String> = directions.iter()
+                let dirs: Vec<String> = directions
+                    .iter()
                     .filter_map(|v| v.as_str().map(|s| s.to_string()))
                     .collect();
-                
-                decorators.constraints.push(Constraint::Orientation(OrientationConstraint {
-                    orientation: OrientationParams {
-                        selector: substitute_self_reference(selector, instance_addr),
-                        directions: dirs,
-                    }
-                }));
+
+                decorators
+                    .constraints
+                    .push(Constraint::Orientation(OrientationConstraint {
+                        orientation: OrientationParams {
+                            selector: substitute_self_reference(selector, instance_addr),
+                            directions: dirs,
+                        },
+                    }));
+            }
+        }
+        "align" => {
+            if let (Some(selector), Some(direction)) = (
+                annotation.params.get("selector").and_then(|v| v.as_str()),
+                annotation.params.get("direction").and_then(|v| v.as_str()),
+            ) {
+                decorators
+                    .constraints
+                    .push(Constraint::Align(AlignConstraint {
+                        align: AlignParams {
+                            selector: substitute_self_reference(selector, instance_addr),
+                            direction: direction.to_string(),
+                        },
+                    }));
             }
         }
         "cyclic" => {
             if let (Some(selector), Some(direction)) = (
                 annotation.params.get("selector").and_then(|v| v.as_str()),
-                annotation.params.get("direction").and_then(|v| v.as_str())
+                annotation.params.get("direction").and_then(|v| v.as_str()),
             ) {
-                decorators.constraints.push(Constraint::Cyclic(CyclicConstraint {
-                    cyclic: CyclicParams {
-                        selector: substitute_self_reference(selector, instance_addr),
-                        direction: direction.to_string(),
-                    }
-                }));
+                decorators
+                    .constraints
+                    .push(Constraint::Cyclic(CyclicConstraint {
+                        cyclic: CyclicParams {
+                            selector: substitute_self_reference(selector, instance_addr),
+                            direction: direction.to_string(),
+                        },
+                    }));
             }
         }
         "atomColor" => {
             if let (Some(selector), Some(value)) = (
                 annotation.params.get("selector").and_then(|v| v.as_str()),
-                annotation.params.get("value").and_then(|v| v.as_str())
+                annotation.params.get("value").and_then(|v| v.as_str()),
             ) {
-                decorators.directives.push(Directive::AtomColor(AtomColorDirective {
-                    atom_color: AtomColorParams {
-                        selector: substitute_self_reference(selector, instance_addr),
-                        value: value.to_string(),
-                    }
-                }));
+                decorators
+                    .directives
+                    .push(Directive::AtomColor(AtomColorDirective {
+                        atom_color: AtomColorParams {
+                            selector: substitute_self_reference(selector, instance_addr),
+                            value: value.to_string(),
+                        },
+                    }));
             }
         }
         "flag" => {
@@ -310,15 +347,19 @@ pub fn annotate_instance<T>(instance: &mut T, annotation: Annotation) {
 /// Collect decorators for both type and instance
 pub fn collect_decorators_for_instance<T: HasSpytialDecorators>(instance: &T) -> SpytialDecorators {
     let mut combined = T::decorators();
-    
+
     let instance_addr = instance as *const T as usize;
     let registry = INSTANCE_REGISTRY.lock().unwrap();
-    
+
     if let Some(instance_decorators) = registry.get(&instance_addr) {
-        combined.constraints.extend(instance_decorators.constraints.clone());
-        combined.directives.extend(instance_decorators.directives.clone());
+        combined
+            .constraints
+            .extend(instance_decorators.constraints.clone());
+        combined
+            .directives
+            .extend(instance_decorators.directives.clone());
     }
-    
+
     combined
 }
 
@@ -326,7 +367,7 @@ pub fn collect_decorators_for_instance<T: HasSpytialDecorators>(instance: &T) ->
 pub fn collect_instance_only_decorators<T>(instance: &T) -> SpytialDecorators {
     let instance_addr = instance as *const T as usize;
     let registry = INSTANCE_REGISTRY.lock().unwrap();
-    
+
     if let Some(instance_decorators) = registry.get(&instance_addr) {
         instance_decorators.clone()
     } else {
@@ -347,7 +388,9 @@ pub fn to_yaml_for_type<T: HasSpytialDecorators>() -> Result<String, serde_yaml:
 
 /// Helper function to get decorators for an instance as YAML
 /// Convert instance decorators to YAML
-pub fn to_yaml_for_instance<T: HasSpytialDecorators>(instance: &T) -> Result<String, serde_yaml::Error> {
+pub fn to_yaml_for_instance<T: HasSpytialDecorators>(
+    instance: &T,
+) -> Result<String, serde_yaml::Error> {
     to_yaml(&collect_decorators_for_instance(instance))
 }
 
@@ -356,7 +399,7 @@ pub fn to_yaml_for_instance<T: HasSpytialDecorators>(instance: &T) -> Result<Str
 pub fn auto_register_related_types<T: HasSpytialDecorators + Serialize>() {
     // Always register the root type
     let _ = T::decorators();
-    
+
     // For now, users still need to manually register, but this provides a cleaner API
 }
 
@@ -385,7 +428,11 @@ pub fn register_types2<T1: HasSpytialDecorators, T2: HasSpytialDecorators>() {
 }
 
 /// Register three types and their decorators
-pub fn register_types3<T1: HasSpytialDecorators, T2: HasSpytialDecorators, T3: HasSpytialDecorators>() {
+pub fn register_types3<
+    T1: HasSpytialDecorators,
+    T2: HasSpytialDecorators,
+    T3: HasSpytialDecorators,
+>() {
     let _ = T1::decorators();
     let _ = T2::decorators();
     let _ = T3::decorators();
@@ -414,11 +461,22 @@ impl SpytialDecoratorsBuilder {
     }
 
     pub fn orientation(mut self, selector: &str, directions: Vec<&str>) -> Self {
-        self.constraints.push(Constraint::Orientation(OrientationConstraint {
-            orientation: OrientationParams {
+        self.constraints
+            .push(Constraint::Orientation(OrientationConstraint {
+                orientation: OrientationParams {
+                    selector: selector.to_string(),
+                    directions: directions.iter().map(|s| s.to_string()).collect(),
+                },
+            }));
+        self
+    }
+
+    pub fn align(mut self, selector: &str, direction: &str) -> Self {
+        self.constraints.push(Constraint::Align(AlignConstraint {
+            align: AlignParams {
                 selector: selector.to_string(),
-                directions: directions.iter().map(|s| s.to_string()).collect(),
-            }
+                direction: direction.to_string(),
+            },
         }));
         self
     }
@@ -428,19 +486,25 @@ impl SpytialDecoratorsBuilder {
             cyclic: CyclicParams {
                 selector: selector.to_string(),
                 direction: direction.to_string(),
-            }
+            },
         }));
         self
     }
 
-    pub fn group_field_based(mut self, field: &str, group_on: u32, add_to_group: u32, selector: Option<&str>) -> Self {
+    pub fn group_field_based(
+        mut self,
+        field: &str,
+        group_on: u32,
+        add_to_group: u32,
+        selector: Option<&str>,
+    ) -> Self {
         self.constraints.push(Constraint::Group(GroupConstraint {
             group: GroupParams::FieldBased {
                 field: field.to_string(),
                 group_on,
                 add_to_group,
                 selector: selector.map(|s| s.to_string()),
-            }
+            },
         }));
         self
     }
@@ -450,18 +514,19 @@ impl SpytialDecoratorsBuilder {
             group: GroupParams::SelectorBased {
                 selector: selector.to_string(),
                 name: name.to_string(),
-            }
+            },
         }));
         self
     }
 
     pub fn atom_color(mut self, selector: &str, value: &str) -> Self {
-        self.directives.push(Directive::AtomColor(AtomColorDirective {
-            atom_color: AtomColorParams {
-                selector: selector.to_string(),
-                value: value.to_string(),
-            }
-        }));
+        self.directives
+            .push(Directive::AtomColor(AtomColorDirective {
+                atom_color: AtomColorParams {
+                    selector: selector.to_string(),
+                    value: value.to_string(),
+                },
+            }));
         self
     }
 
@@ -471,7 +536,7 @@ impl SpytialDecoratorsBuilder {
                 selector: selector.to_string(),
                 height,
                 width,
-            }
+            },
         }));
         self
     }
@@ -482,48 +547,52 @@ impl SpytialDecoratorsBuilder {
                 selector: selector.to_string(),
                 path: path.to_string(),
                 show_labels,
-            }
+            },
         }));
         self
     }
 
     pub fn edge_color(mut self, field: &str, value: &str, selector: Option<&str>) -> Self {
-        self.directives.push(Directive::EdgeColor(EdgeColorDirective {
-            edge_color: EdgeColorParams {
-                field: field.to_string(),
-                value: value.to_string(),
-                selector: selector.map(|s| s.to_string()),
-            }
-        }));
+        self.directives
+            .push(Directive::EdgeColor(EdgeColorDirective {
+                edge_color: EdgeColorParams {
+                    field: field.to_string(),
+                    value: value.to_string(),
+                    selector: selector.map(|s| s.to_string()),
+                },
+            }));
         self
     }
 
     pub fn projection(mut self, sig: &str) -> Self {
-        self.directives.push(Directive::Projection(ProjectionDirective {
-            projection: ProjectionParams {
-                sig: sig.to_string(),
-            }
-        }));
+        self.directives
+            .push(Directive::Projection(ProjectionDirective {
+                projection: ProjectionParams {
+                    sig: sig.to_string(),
+                },
+            }));
         self
     }
 
     pub fn attribute(mut self, field: &str, selector: Option<&str>) -> Self {
-        self.directives.push(Directive::Attribute(AttributeDirective {
-            attribute: AttributeParams {
-                field: field.to_string(),
-                selector: selector.map(|s| s.to_string()),
-            }
-        }));
+        self.directives
+            .push(Directive::Attribute(AttributeDirective {
+                attribute: AttributeParams {
+                    field: field.to_string(),
+                    selector: selector.map(|s| s.to_string()),
+                },
+            }));
         self
     }
 
     pub fn hide_field(mut self, field: &str, selector: Option<&str>) -> Self {
-        self.directives.push(Directive::HideField(HideFieldDirective {
-            hide_field: HideFieldParams {
-                field: field.to_string(),
-                selector: selector.map(|s| s.to_string()),
-            }
-        }));
+        self.directives
+            .push(Directive::HideField(HideFieldDirective {
+                hide_field: HideFieldParams {
+                    field: field.to_string(),
+                    selector: selector.map(|s| s.to_string()),
+                },
+            }));
         self
     }
 
@@ -531,18 +600,19 @@ impl SpytialDecoratorsBuilder {
         self.directives.push(Directive::HideAtom(HideAtomDirective {
             hide_atom: HideAtomParams {
                 selector: selector.to_string(),
-            }
+            },
         }));
         self
     }
 
     pub fn inferred_edge(mut self, name: &str, selector: &str) -> Self {
-        self.directives.push(Directive::InferredEdge(InferredEdgeDirective {
-            inferred_edge: InferredEdgeParams {
-                name: name.to_string(),
-                selector: selector.to_string(),
-            }
-        }));
+        self.directives
+            .push(Directive::InferredEdge(InferredEdgeDirective {
+                inferred_edge: InferredEdgeParams {
+                    name: name.to_string(),
+                    selector: selector.to_string(),
+                },
+            }));
         self
     }
 
@@ -577,11 +647,20 @@ pub struct AnnotationBuilder;
 impl AnnotationBuilder {
     pub fn orientation(selector: &str, directions: Vec<&str>) -> Annotation {
         let mut params = std::collections::HashMap::new();
-        params.insert("selector".to_string(), serde_json::Value::String(selector.to_string()));
-        params.insert("directions".to_string(), serde_json::Value::Array(
-            directions.iter().map(|s| serde_json::Value::String(s.to_string())).collect()
-        ));
-        
+        params.insert(
+            "selector".to_string(),
+            serde_json::Value::String(selector.to_string()),
+        );
+        params.insert(
+            "directions".to_string(),
+            serde_json::Value::Array(
+                directions
+                    .iter()
+                    .map(|s| serde_json::Value::String(s.to_string()))
+                    .collect(),
+            ),
+        );
+
         Annotation {
             annotation_type: "orientation".to_string(),
             params,
@@ -590,20 +669,49 @@ impl AnnotationBuilder {
 
     pub fn cyclic(selector: &str, direction: &str) -> Annotation {
         let mut params = std::collections::HashMap::new();
-        params.insert("selector".to_string(), serde_json::Value::String(selector.to_string()));
-        params.insert("direction".to_string(), serde_json::Value::String(direction.to_string()));
-        
+        params.insert(
+            "selector".to_string(),
+            serde_json::Value::String(selector.to_string()),
+        );
+        params.insert(
+            "direction".to_string(),
+            serde_json::Value::String(direction.to_string()),
+        );
+
         Annotation {
             annotation_type: "cyclic".to_string(),
             params,
         }
     }
 
+    pub fn align(selector: &str, direction: &str) -> Annotation {
+        let mut params = std::collections::HashMap::new();
+        params.insert(
+            "selector".to_string(),
+            serde_json::Value::String(selector.to_string()),
+        );
+        params.insert(
+            "direction".to_string(),
+            serde_json::Value::String(direction.to_string()),
+        );
+
+        Annotation {
+            annotation_type: "align".to_string(),
+            params,
+        }
+    }
+
     pub fn atom_color(selector: &str, value: &str) -> Annotation {
         let mut params = std::collections::HashMap::new();
-        params.insert("selector".to_string(), serde_json::Value::String(selector.to_string()));
-        params.insert("value".to_string(), serde_json::Value::String(value.to_string()));
-        
+        params.insert(
+            "selector".to_string(),
+            serde_json::Value::String(selector.to_string()),
+        );
+        params.insert(
+            "value".to_string(),
+            serde_json::Value::String(value.to_string()),
+        );
+
         Annotation {
             annotation_type: "atomColor".to_string(),
             params,
@@ -612,8 +720,11 @@ impl AnnotationBuilder {
 
     pub fn flag(name: &str) -> Annotation {
         let mut params = std::collections::HashMap::new();
-        params.insert("name".to_string(), serde_json::Value::String(name.to_string()));
-        
+        params.insert(
+            "name".to_string(),
+            serde_json::Value::String(name.to_string()),
+        );
+
         Annotation {
             annotation_type: "flag".to_string(),
             params,
@@ -640,19 +751,53 @@ mod tests {
                     orientation: OrientationParams {
                         selector: "value".to_string(),
                         directions: vec!["above".to_string()],
-                    }
-                })
+                    },
+                }),
+                Constraint::Align(AlignConstraint {
+                    align: AlignParams {
+                        selector: "siblings".to_string(),
+                        direction: "horizontal".to_string(),
+                    },
+                }),
             ],
-            directives: vec![
-                Directive::Flag(FlagDirective {
-                    flag: "test_flag".to_string()
-                })
-            ],
+            directives: vec![Directive::Flag(FlagDirective {
+                flag: "test_flag".to_string(),
+            })],
         };
 
         let yaml = to_yaml(&decorators).unwrap();
         assert!(yaml.contains("orientation"));
+        assert!(yaml.contains("align"));
         assert!(yaml.contains("flag"));
+    }
+
+    #[test]
+    fn test_runtime_align_annotation_is_collected() {
+        struct RuntimeAnnotated;
+
+        impl HasSpytialDecorators for RuntimeAnnotated {
+            fn decorators() -> SpytialDecorators {
+                SpytialDecorators::default()
+            }
+        }
+
+        let mut instance = RuntimeAnnotated;
+        annotate_instance(
+            &mut instance,
+            AnnotationBuilder::align("self.peer", "vertical"),
+        );
+
+        let decorators = collect_instance_only_decorators(&instance);
+        assert_eq!(decorators.constraints.len(), 1);
+
+        match &decorators.constraints[0] {
+            Constraint::Align(align) => {
+                assert_eq!(align.align.direction, "vertical");
+                assert!(align.align.selector.starts_with("obj_"));
+                assert!(align.align.selector.ends_with(".peer"));
+            }
+            other => panic!("expected align constraint, got {:?}", other),
+        }
     }
 
     #[test]
