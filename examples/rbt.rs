@@ -1,7 +1,6 @@
 use json_data_instance_export::{diagram, SpytialDecorators};
 use serde::Serialize;
 
-
 #[derive(Serialize, SpytialDecorators)]
 struct RBTree {
     root: Option<Box<RBNode>>,
@@ -14,9 +13,9 @@ struct RBTree {
 #[attribute(field = "color")]
 #[orientation(selector="{x, y : RBNode | x->y in left}", directions=["left", "below"])]
 #[orientation(selector="{x, y : RBNode | x->y in right}", directions=["right", "below"])]
-#[hide_atom(selector="Color + u32 + None")]
-#[atom_color(selector="{x : RBNode | @:(x.color) = Red}", value="red")]
-#[atom_color(selector="{x : RBNode | @:(x.color) = Black}", value="black")]
+#[hide_atom(selector = "Color + u32 + None")]
+#[atom_color(selector = "{x : RBNode | @:(x.color) = Red}", value = "red")]
+#[atom_color(selector = "{x : RBNode | @:(x.color) = Black}", value = "black")]
 struct RBNode {
     key: u32,
     color: Color,
@@ -77,7 +76,6 @@ impl RBTree {
 }
 
 fn main() {
-
     //
     let mut tree = RBTree::new();
     tree.insert(5);

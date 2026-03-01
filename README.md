@@ -1,6 +1,13 @@
 # CaraSpace
 
-Spytial for Rust
+Spytial for Rust.
+
+The repository is called `caraspace`; the current crate package name is `json_data_instance_export`.
+
+## Documentation
+
+- [User Guide](./USER_GUIDE.md) for installation, quick start, and common workflows
+- [Design Notes](./doc.md) for the compile-time and serialization internals
 
 ## How Compile-Time Annotation Collection Works
 
@@ -36,12 +43,17 @@ macros/
 
 - `diagram<T>(value: &T)` - Create visualization with automatic decorator collection
 - `diagram_with_spec<T>(value: &T, cnd_spec: &str)` - Create visualization with custom SpyTial spec (sort of an escape hatch)
+- `export_json_instance<T>(value: &T)` - Export Rust data to the relational JSON format used by Spytial
 
 ### Decorator Attributes
 
 - `#[attribute(field = "field_name")]` - Mark a field as an attribute
 - `#[flag(name = "flag_name")]` - Add a boolean flag
-- `#[constraint(...)]` - Add layout constraints (coming soon)
+- `#[orientation(selector = "...", directions = [...])]` - Relative positioning constraint
+- `#[align(selector = "...", direction = "...")]` - Horizontal or vertical alignment
+- `#[cyclic(selector = "...", direction = "...")]` - Cyclic ordering constraint
+- `#[group(...)]` - Grouping constraint
+- Visual directives such as `#[atom_color(...)]`, `#[size(...)]`, `#[icon(...)]`, `#[hide_atom(...)]`
 
 ### Supported Field Types
 
@@ -63,7 +75,8 @@ cargo run --example demo
 
 Check for issues:
 ```bash
-cargo check
+cargo test --lib --tests
+cargo test --doc
 ```
 
 The example demonstrates a `Company` with `Vec<Person>` where both types have decorators, and shows how all decorators are automatically collected without manual registration.

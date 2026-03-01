@@ -19,14 +19,17 @@ fn main() {
         color: Color::Red,
         value: 42,
     };
-    
+
     let instance = export_json_instance(&test);
-    
+
     println!("Atoms:");
     for atom in &instance.atoms {
-        println!("  - id: {}, type: {}, label: {}", atom.id, atom.r#type, atom.label);
+        println!(
+            "  - id: {}, type: {}, label: {}",
+            atom.id, atom.r#type, atom.label
+        );
     }
-    
+
     println!("\nRelations:");
     for relation in &instance.relations {
         println!("  - {}: {} tuples", relation.name, relation.tuples.len());

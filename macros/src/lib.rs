@@ -132,7 +132,7 @@ fn generate_decorator_call_for_type(type_name: &str) -> proc_macro2::TokenStream
 /// - `#[attribute(field = "field_name")]` - Adds attribute directive
 /// - `#[flag(name = "flag_name")]` - Adds flag directive  
 /// - `#[orientation(selector = "sel", directions = ["up", "down"])]` - Adds orientation constraint
-/// - `#[align(selector = "sel", direction = "up")]` - Adds align constraint
+/// - `#[align(selector = "sel", direction = "horizontal")]` - Adds align constraint
 /// - `#[cyclic(selector = "sel", direction = "up")]` - Adds cyclic constraint
 /// - `#[group(selector = "sel", name = "group_name")]` - Adds selector-based group constraint
 /// - `#[group(field = "field", group_on = 1, add_to_group = 2)]` - Adds field-based group constraint
