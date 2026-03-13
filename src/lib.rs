@@ -57,8 +57,8 @@ use std::process::Command;
 /// diagram(&company);  // Shows decorators from both Company AND Person
 /// ```
 pub fn diagram<T: spytial_annotations::HasSpytialDecorators + Serialize>(value: &T) {
-    let cnd_spec = collect_cnd_spec_for_diagram(value);
-    diagram_impl(value, &cnd_spec);
+    let spytial_spec = collect_spytial_spec_for_diagram(value);
+    diagram_impl(value, &spytial_spec);
 }
 
 /// Collect SpyTial specification using compile-time decorator collection.
@@ -66,37 +66,27 @@ pub fn diagram<T: spytial_annotations::HasSpytialDecorators + Serialize>(value: 
 /// With the new compile-time system, calling `T::decorators()` returns decorators
 /// from the type itself AND all nested types that have decorators. This eliminates
 /// the need for complex runtime type discovery and registration.
-fn collect_cnd_spec_for_diagram<T: spytial_annotations::HasSpytialDecorators + Serialize>(
+fn collect_spytial_spec_for_diagram<T: spytial_annotations::HasSpytialDecorators + Serialize>(
     _value: &T,
 ) -> String {
-    println!("🔍 Assembling SpyTial spec with compile-time decorator collection...");
-
     // The magic happens here: T::decorators() includes ALL decorators
     // from this type AND all nested decorated types (analyzed at compile time)
     let all_decorators = T::decorators();
-    println!(
-        "   ✨ Compile-time collected decorators: {} constraints, {} directives",
-        all_decorators.constraints.len(),
-        all_decorators.directives.len()
-    );
 
     // Serialize to YAML
-    let cnd_spec = spytial_annotations::to_yaml(&all_decorators).unwrap_or_default();
-    println!("   📋 Generated SpyTial spec:\n{}", cnd_spec);
-
-    cnd_spec
+    spytial_annotations::to_yaml(&all_decorators).unwrap_or_default()
 }
 
 /// Creates a diagram with a custom SpyTial specification (legacy function).
 ///
 /// This allows you to provide a custom SpyTial specification instead of using
 /// the automatic compile-time decorator collection.
-pub fn diagram_with_spec<T: Serialize>(value: &T, cnd_spec: &str) {
-    diagram_impl(value, cnd_spec);
+pub fn diagram_with_spec<T: Serialize>(value: &T, spec: &str) {
+    diagram_impl(value, spec);
 }
 
 /// Internal implementation shared by diagram functions.
-fn diagram_impl<T: Serialize>(value: &T, cnd_spec: &str) {
+fn diagram_impl<T: Serialize>(value: &T, spec: &str) {
     // Export the struct to our custom JSON format with type information
     let json_instance = export_json_instance(value);
     let json_data = serde_json::to_string_pretty(&json_instance).unwrap();
@@ -105,23 +95,18 @@ fn diagram_impl<T: Serialize>(value: &T, cnd_spec: &str) {
     let template = include_str!("../templates/template.html");
     let rendered_html = template
         .replace("{{ json_data }}", &json_data)
-        .replace("{{ cnd_spec }}", cnd_spec);
+        .replace("{{ spytial_spec }}", spec);
 
     // Save the rendered HTML to a temporary file
     let temp_dir = env::temp_dir();
     let temp_file_path = temp_dir.join("rust_viz_data.html");
     fs::write(&temp_file_path, rendered_html).expect("Failed to write HTML to file");
 
-    // Open the HTML file in the browser
-    let file_url = format!("file://{}", temp_file_path.display());
-    println!("Opening visualization at: {}", file_url);
-
     let skip_browser_open = env::var("SPYTIAL_NO_OPEN")
         .map(|raw| matches!(raw.to_ascii_lowercase().as_str(), "1" | "true" | "yes"))
         .unwrap_or(false);
 
     if skip_browser_open {
-        println!("SPYTIAL_NO_OPEN is set; skipping browser launch.");
         return;
     }
 

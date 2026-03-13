@@ -42,7 +42,7 @@ macros/
 ### Core Functions
 
 - `diagram<T>(value: &T)` - Create visualization with automatic decorator collection
-- `diagram_with_spec<T>(value: &T, cnd_spec: &str)` - Create visualization with custom SpyTial spec (sort of an escape hatch)
+- `diagram_with_spec<T>(value: &T, spec: &str)` - Create visualization with a custom SpyTial spec (escape hatch)
 - `export_json_instance<T>(value: &T)` - Export Rust data to the relational JSON format used by Spytial
 
 ### Decorator Attributes
@@ -71,7 +71,7 @@ The compile-time analysis supports:
 - `cargo run --example demo` shows decorator collection on nested business-domain structs.
 - `cargo run --example rbt` builds an insertion-balanced red-black tree (LLRB style) and renders it with node color/layout decorators.
 
-## 🛠 Development
+## Development
 
 ```bash
 cargo test --lib --tests
