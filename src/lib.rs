@@ -116,6 +116,15 @@ fn diagram_impl<T: Serialize>(value: &T, cnd_spec: &str) {
     let file_url = format!("file://{}", temp_file_path.display());
     println!("Opening visualization at: {}", file_url);
 
+    let skip_browser_open = env::var("SPYTIAL_NO_OPEN")
+        .map(|raw| matches!(raw.to_ascii_lowercase().as_str(), "1" | "true" | "yes"))
+        .unwrap_or(false);
+
+    if skip_browser_open {
+        println!("SPYTIAL_NO_OPEN is set; skipping browser launch.");
+        return;
+    }
+
     #[cfg(target_os = "macos")]
     let open_cmd = "open";
     #[cfg(target_os = "windows")]
@@ -123,8 +132,11 @@ fn diagram_impl<T: Serialize>(value: &T, cnd_spec: &str) {
     #[cfg(target_os = "linux")]
     let open_cmd = "xdg-open";
 
-    Command::new(open_cmd)
-        .arg(&temp_file_path)
-        .spawn()
-        .expect("Failed to open browser");
+    if let Err(error) = Command::new(open_cmd).arg(&temp_file_path).spawn() {
+        eprintln!(
+            "Failed to open browser: {}. Open this file manually: {}",
+            error,
+            temp_file_path.display()
+        );
+    }
 }
