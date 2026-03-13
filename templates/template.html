@@ -87,7 +87,7 @@
 
     <script>
         // Embedded data passed from Rust (using simple string replacement)
-        const cndSpec = `{{ cnd_spec }}`;
+        const spytialSpec = `{{ spytial_spec }}`;
         
         const jsonData = `{{ json_data }}`;
 
@@ -127,8 +127,8 @@
 
             // Check if Core is available
             if (typeof CndCore === 'undefined') {
-                console.error('CnD Core library is not available');
-                showError('CnD Core library failed to load. The visualization cannot be displayed.');
+                console.error('Spytial core library is not available');
+                showError('Spytial core library failed to load. The visualization cannot be displayed.');
                 return;
             }
 
@@ -161,8 +161,8 @@
 
                 window.evaluator = sgqEvaluator; // Expose evaluator for debugging
 
-                // Parse the CND specification (empty specs are valid)
-                const layoutSpec = CndCore.parseLayoutSpec(cndSpec);
+                // Parse the layout specification (empty specs are valid)
+                const layoutSpec = CndCore.parseLayoutSpec(spytialSpec);
                 console.log('Layout spec parsed');
 
                 // Generate the layout

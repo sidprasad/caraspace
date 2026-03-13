@@ -21,8 +21,6 @@ json_data_instance_export = { path = "/path/to/caraspace" }
 serde = { version = "1", features = ["derive"] }
 ```
 
-If you are consuming a published version later, replace the `path` dependency with the crate version.
-
 ## Quick Start
 
 ```rust
@@ -181,7 +179,7 @@ After the example runs, the container serves the generated visualization at `htt
 
 ## Limitations and Expectations
 
-- The browser rendering path relies on the embedded HTML template and CDN-hosted `spytial-core`.
+- The browser rendering path relies on the embedded HTML template and bundled browser dependencies.
 - Compile-time type walking is intentionally conservative; it handles common wrappers, not arbitrary type-level programming.
 - The crate name and repository name do not currently match. In Cargo code samples, use `json_data_instance_export`.
 
