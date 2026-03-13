@@ -66,20 +66,45 @@ The compile-time analysis supports:
 
 
 
+## Representative Examples
+
+- `cargo run --example demo` shows decorator collection on nested business-domain structs.
+- `cargo run --example rbt` builds an insertion-balanced red-black tree (LLRB style) and renders it with node color/layout decorators.
+
 ## 🛠 Development
 
-Run the example:
-```bash
-cargo run --example demo
-```
-
-Check for issues:
 ```bash
 cargo test --lib --tests
 cargo test --doc
+cargo run --example demo
+cargo run --example rbt
 ```
 
-The example demonstrates a `Company` with `Vec<Person>` where both types have decorators, and shows how all decorators are automatically collected without manual registration.
+## Docker
+
+Build the image:
+
+```bash
+docker build -t caraspace .
+```
+
+Run the default red-black tree example:
+
+```bash
+docker run --rm -p 8080:8080 caraspace
+```
+
+Run a different example:
+
+```bash
+docker run --rm -p 8080:8080 caraspace demo
+```
+
+When the example finishes, the container starts a small HTTP server and logs:
+
+`Visualization server ready at http://localhost:8080/rust_viz_data.html`
+
+Open that URL in your host browser. Browser launch inside the container stays disabled (`SPYTIAL_NO_OPEN=1`).
 
 
 ## License

@@ -151,7 +151,33 @@ That path is better suited to advanced integrations than to the normal “derive
 cargo test --lib --tests
 cargo test --doc
 cargo run --example demo
+cargo run --example rbt
 ```
+
+The `rbt` example is a representative insertion-balanced red-black tree (LLRB style) with decorator-driven coloring and left/right layout constraints.
+
+## Docker Quickstart
+
+Build:
+
+```bash
+docker build -t caraspace .
+```
+
+Run the red-black tree example (default):
+
+```bash
+docker run --rm -p 8080:8080 caraspace
+```
+
+Run a specific example:
+
+```bash
+docker run --rm -p 8080:8080 caraspace demo
+```
+
+In Docker, browser launch is disabled (`SPYTIAL_NO_OPEN=1`), so no GUI is opened inside the container.
+After the example runs, the container serves the generated visualization at `http://localhost:8080/rust_viz_data.html`.
 
 ## Limitations and Expectations
 
