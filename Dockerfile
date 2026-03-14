@@ -2,7 +2,7 @@ FROM rust:1-bookworm AS builder
 
 WORKDIR /app
 
-COPY Cargo.toml Cargo.lock ./
+COPY Cargo.toml ./
 COPY macros/Cargo.toml macros/Cargo.toml
 COPY macros/src macros/src
 COPY src src
