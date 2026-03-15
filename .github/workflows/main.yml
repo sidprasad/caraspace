@@ -46,6 +46,7 @@ jobs:
           tags: |
             ghcr.io/sidprasad/caraspace:${{ github.sha }}-${{ matrix.arch }}
             ghcr.io/sidprasad/caraspace:latest-${{ matrix.arch }}
+          provenance: false
           cache-from: type=gha,scope=${{ matrix.arch }}
           cache-to: type=gha,scope=${{ matrix.arch }},mode=max
 
