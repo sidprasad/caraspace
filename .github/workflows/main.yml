@@ -7,12 +7,19 @@ on:
 
 jobs:
   docker-build:
-    name: Build Docker image
+    name: Build Docker image (${{ matrix.arch }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
       packages: write
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+          - arch: arm64
+            platform: linux/arm64
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -24,6 +31,9 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -32,8 +42,38 @@ jobs:
         with:
           context: .
           push: true
+          platforms: ${{ matrix.platform }}
           tags: |
-            ghcr.io/sidprasad/caraspace:${{ github.sha }}
-            ghcr.io/sidprasad/caraspace:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            ghcr.io/sidprasad/caraspace:${{ github.sha }}-${{ matrix.arch }}
+            ghcr.io/sidprasad/caraspace:latest-${{ matrix.arch }}
+          cache-from: type=gha,scope=${{ matrix.arch }}
+          cache-to: type=gha,scope=${{ matrix.arch }},mode=max
+
+  docker-manifest:
+    name: Create multi-arch manifests
+    runs-on: ubuntu-latest
+    needs: docker-build
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create and push SHA manifest
+        run: |
+          docker manifest create ghcr.io/sidprasad/caraspace:${{ github.sha }} \
+            ghcr.io/sidprasad/caraspace:${{ github.sha }}-amd64 \
+            ghcr.io/sidprasad/caraspace:${{ github.sha }}-arm64
+          docker manifest push ghcr.io/sidprasad/caraspace:${{ github.sha }}
+
+      - name: Create and push latest manifest
+        run: |
+          docker manifest create ghcr.io/sidprasad/caraspace:latest \
+            ghcr.io/sidprasad/caraspace:latest-amd64 \
+            ghcr.io/sidprasad/caraspace:latest-arm64
+          docker manifest push ghcr.io/sidprasad/caraspace:latest
