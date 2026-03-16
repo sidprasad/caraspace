@@ -7,9 +7,9 @@
     
     <script src="https://d3js.org/d3.v4.min.js"></script>
 
-    <script src="https://cdn.jsdelivr.net/npm/spytial-core@1.9.3/dist/browser/spytial-core-complete.global.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/spytial-core@1.9.3/dist/components/react-component-integration.global.js"></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/spytial-core@1.9.3/dist/components/react-component-integration.css" /> 
+    <script src="https://cdn.jsdelivr.net/npm/spytial-core@1.9.12/dist/browser/spytial-core-complete.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/spytial-core@1.9.12/dist/components/react-component-integration.global.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/spytial-core@1.9.12/dist/components/react-component-integration.css" /> 
     
     <style>
         body {
@@ -125,8 +125,10 @@
         async function loadGraph() {
             graphElement = document.getElementById('graph-container');
 
+            const coreApi = window.CndCore || window.CnDCore || window.spytialcore;
+
             // Check if Core is available
-            if (typeof CndCore === 'undefined') {
+            if (!coreApi || typeof coreApi !== 'object') {
                 console.error('Spytial core library is not available');
                 showError('Spytial core library failed to load. The visualization cannot be displayed.');
                 return;
@@ -150,23 +152,27 @@
                 }
                 console.log(parsedData)
                 // Create a data instance from the JSON data
-                const dataInstance = new CndCore.JSONDataInstance(parsedData);
+                if (typeof coreApi.JSONDataInstance !== 'function') {
+                    throw new Error('Spytial core API mismatch: JSONDataInstance constructor is not available on the global namespace');
+                }
+
+                const dataInstance = new coreApi.JSONDataInstance(parsedData);
                 window.dataInstance = dataInstance; // Expose for debugging
 
                 // Initialize the evaluation context
                 const evaluationContext = { sourceData: dataInstance };
-                const sgqEvaluator = new CndCore.SGraphQueryEvaluator();
+                const sgqEvaluator = new coreApi.SGraphQueryEvaluator();
                 sgqEvaluator.initialize(evaluationContext);
                 console.log('Evaluation context initialized');
 
                 window.evaluator = sgqEvaluator; // Expose evaluator for debugging
 
                 // Parse the layout specification (empty specs are valid)
-                const layoutSpec = CndCore.parseLayoutSpec(spytialSpec);
+                const layoutSpec = coreApi.parseLayoutSpec(spytialSpec);
                 console.log('Layout spec parsed');
 
                 // Generate the layout
-                const layoutInstance = new CndCore.LayoutInstance(layoutSpec, sgqEvaluator, 0, true);
+                const layoutInstance = new coreApi.LayoutInstance(layoutSpec, sgqEvaluator, 0, true);
                 const layoutResult = layoutInstance.generateLayout(dataInstance, {});
                 console.log('Layout generated');
                 window.evaluator = sgqEvaluator; // Expose evaluator for debugging
