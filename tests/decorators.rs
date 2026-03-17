@@ -1,7 +1,7 @@
-use json_data_instance_export::spytial_annotations::{
+use caraspace::spytial_annotations::{
     to_yaml, Constraint, Directive, HasSpytialDecorators,
 };
-use json_data_instance_export::SpytialDecorators;
+use caraspace::SpytialDecorators;
 use serde::Serialize;
 
 #[derive(Serialize, SpytialDecorators)]

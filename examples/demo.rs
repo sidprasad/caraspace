@@ -1,4 +1,4 @@
-use json_data_instance_export::{diagram, SpytialDecorators};
+use caraspace::{diagram, SpytialDecorators};
 use serde::Serialize;
 
 #[derive(Serialize, SpytialDecorators, Debug)]

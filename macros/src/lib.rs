@@ -30,26 +30,38 @@ fn collect_field_type_decorators(data: &Data, self_type_name: &str) -> Vec<proc_
     field_decorators
 }
 
-/// Analyze a field type and extract decorator calls for nested types
+/// Analyze a field type and generate decorator-collection calls for nested types.
+///
+/// Containers (`Vec`, `Option`, `Box`) are unwrapped to reach the inner type.
+/// Primitives and standard collections are skipped (they can never carry
+/// decorators).  Everything else gets a probe call via [`DecoProbe`] — if the
+/// type implements `HasSpytialDecorators` the real decorators are returned;
+/// otherwise the probe safely returns an empty set.
 fn analyze_field_type(ty: &Type, seen_types: &mut std::collections::HashSet<String>) -> Vec<proc_macro2::TokenStream> {
     match ty {
-        // Handle Vec<T>, Option<T>, Box<T>, etc.
         Type::Path(type_path) => {
             if let Some(segment) = type_path.path.segments.last() {
-                match segment.ident.to_string().as_str() {
+                let name = segment.ident.to_string();
+                match name.as_str() {
+                    // Containers: unwrap to reach the inner type
                     "Vec" | "Option" | "Box" => {
-                        // Extract the inner type T from Vec<T>, Option<T>, etc.
                         if let PathArguments::AngleBracketed(args) = &segment.arguments {
-                            if let Some(GenericArgument::Type(inner_type)) = args.args.first() {
-                                return analyze_inner_type(inner_type, seen_types);
+                            if let Some(GenericArgument::Type(inner)) = args.args.first() {
+                                return analyze_inner_type(inner, seen_types);
                             }
                         }
                     }
-                    type_name => {
-                        // Check if this might be a type with decorators
-                        if is_likely_decorated_type(type_name) && !seen_types.contains(type_name) {
-                            seen_types.insert(type_name.to_string());
-                            return vec![generate_decorator_call_for_type(type_name)];
+                    // Primitives and std collections: can never have decorators
+                    "i8" | "i16" | "i32" | "i64" | "i128"
+                    | "u8" | "u16" | "u32" | "u64" | "u128"
+                    | "f32" | "f64" | "bool" | "char"
+                    | "String" | "str"
+                    | "Result" | "HashMap" | "HashSet" | "BTreeMap" | "BTreeSet" => {}
+                    // Everything else: safe to probe
+                    _ => {
+                        if !seen_types.contains(&name) {
+                            seen_types.insert(name.clone());
+                            return vec![generate_probe_call(&name)];
                         }
                     }
                 }
@@ -57,32 +69,32 @@ fn analyze_field_type(ty: &Type, seen_types: &mut std::collections::HashSet<Stri
         }
         _ => {}
     }
-    
     Vec::new()
 }
 
-/// Analyze inner types (like T in Vec<T>)
-/// This recursively handles nested generics like Option<Box<T>>
+/// Recursively unwrap container generics (`Option<Box<T>>` → `T`), then
+/// probe the inner type.
 fn analyze_inner_type(ty: &Type, seen_types: &mut std::collections::HashSet<String>) -> Vec<proc_macro2::TokenStream> {
     if let Type::Path(type_path) = ty {
         if let Some(segment) = type_path.path.segments.last() {
-            let type_name = segment.ident.to_string();
-            
-            // Check if this is another wrapper type (Box, Option, etc.)
-            match type_name.as_str() {
+            let name = segment.ident.to_string();
+            match name.as_str() {
                 "Vec" | "Option" | "Box" => {
-                    // Recursively unwrap nested wrappers like Box<Node> in Option<Box<Node>>
                     if let PathArguments::AngleBracketed(args) = &segment.arguments {
-                        if let Some(GenericArgument::Type(inner_type)) = args.args.first() {
-                            return analyze_inner_type(inner_type, seen_types);
+                        if let Some(GenericArgument::Type(inner)) = args.args.first() {
+                            return analyze_inner_type(inner, seen_types);
                         }
                     }
                 }
+                "i8" | "i16" | "i32" | "i64" | "i128"
+                | "u8" | "u16" | "u32" | "u64" | "u128"
+                | "f32" | "f64" | "bool" | "char"
+                | "String" | "str"
+                | "Result" | "HashMap" | "HashSet" | "BTreeMap" | "BTreeSet" => {}
                 _ => {
-                    // This is the actual type (like Node)
-                    if is_likely_decorated_type(&type_name) && !seen_types.contains(&type_name) {
-                        seen_types.insert(type_name.clone());
-                        return vec![generate_decorator_call_for_type(&type_name)];
+                    if !seen_types.contains(&name) {
+                        seen_types.insert(name.clone());
+                        return vec![generate_probe_call(&name)];
                     }
                 }
             }
@@ -91,34 +103,19 @@ fn analyze_inner_type(ty: &Type, seen_types: &mut std::collections::HashSet<Stri
     Vec::new()
 }
 
-/// Check if a type name is likely to have SpyTial decorators
-/// This is a heuristic - we look for non-primitive types
-fn is_likely_decorated_type(type_name: &str) -> bool {
-    match type_name {
-        // Skip primitive types
-        "i8" | "i16" | "i32" | "i64" | "i128" |
-        "u8" | "u16" | "u32" | "u64" | "u128" |
-        "f32" | "f64" | "bool" | "char" |
-        "String" | "str" => false,
-        
-        // Skip common std types and collections
-        "Vec" | "Option" | "Result" | "Box" | "HashMap" | "HashSet" => false,
-        
-        // Everything else might have decorators
-        _ => {
-            // Check if it starts with uppercase (typical struct naming)
-            type_name.chars().next().map_or(false, |c| c.is_uppercase())
-        }
-    }
-}
-
-/// Generate a call to collect decorators from a specific type
-fn generate_decorator_call_for_type(type_name: &str) -> proc_macro2::TokenStream {
+/// Generate a probe call that safely collects decorators from `type_name`.
+///
+/// Uses the inherent-method-priority trick: if the type implements
+/// `HasSpytialDecorators`, the inherent `DecoProbe::get` is chosen and
+/// returns real decorators.  Otherwise the blanket `DefaultDecorators::get`
+/// is chosen and returns an empty set.  No heuristic needed.
+fn generate_probe_call(type_name: &str) -> proc_macro2::TokenStream {
     let type_ident = syn::Ident::new(type_name, proc_macro2::Span::call_site());
-    
-    // Generate a call that will include decorators from this type
     quote! {
-        .include_decorators_from_type::<#type_ident>()
+        .extend_with({
+            use caraspace::spytial_annotations::DefaultDecorators as _;
+            caraspace::spytial_annotations::DecoProbe::<#type_ident>(::std::marker::PhantomData).get()
+        })
     }
 }
 
@@ -148,7 +145,7 @@ fn generate_decorator_call_for_type(type_name: &str) -> proc_macro2::TokenStream
 /// # Example
 /// ```rust
 /// use serde::Serialize;
-/// use json_data_instance_export::SpytialDecorators;
+/// use caraspace::SpytialDecorators;
 /// 
 /// #[derive(Serialize, SpytialDecorators)]
 /// #[attribute(field = "name")]
@@ -270,21 +267,21 @@ pub fn derive_spytial_decorators(input: TokenStream) -> TokenStream {
 
     // Generate the HasSpytialDecorators implementation
     let expanded = quote! {
-        impl #impl_generics json_data_instance_export::spytial_annotations::HasSpytialDecorators for #name #ty_generics #where_clause {
-            fn decorators() -> json_data_instance_export::spytial_annotations::SpytialDecorators {
+        impl #impl_generics caraspace::spytial_annotations::HasSpytialDecorators for #name #ty_generics #where_clause {
+            fn decorators() -> caraspace::spytial_annotations::SpytialDecorators {
                 // Register this type automatically when decorators() is called
                 static REGISTRATION: ::std::sync::Once = ::std::sync::Once::new();
                 REGISTRATION.call_once(|| {
-                    let decorators = json_data_instance_export::spytial_annotations::SpytialDecoratorsBuilder::new()
+                    let decorators = caraspace::spytial_annotations::SpytialDecoratorsBuilder::new()
                         #(#decorator_calls)*
                         .build();
-                    json_data_instance_export::spytial_annotations::register_type_decorators(
+                    caraspace::spytial_annotations::register_type_decorators(
                         stringify!(#name), 
                         decorators.clone()
                     );
                 });
 
-                json_data_instance_export::spytial_annotations::SpytialDecoratorsBuilder::new()
+                caraspace::spytial_annotations::SpytialDecoratorsBuilder::new()
                     #(#decorator_calls)*
                     .build()
             }

@@ -1,4 +1,4 @@
-use json_data_instance_export::export_json_instance;
+use caraspace::export_json_instance;
 use serde::Serialize;
 
 #[derive(Serialize)]

@@ -1,8 +1,5 @@
 //! CaraSpace is the Rust-facing integration layer for Spytial.
 //!
-//! The repository is named CaraSpace, while the current crate package name is
-//! `json_data_instance_export`.
-//!
 //! Start with `README.md` for the project overview and `USER_GUIDE.md` for the
 //! end-user workflow.
 
@@ -31,7 +28,7 @@ use std::process::Command;
 /// ## Example:
 /// ```no_run
 /// use serde::Serialize;
-/// use json_data_instance_export::{diagram, SpytialDecorators};
+/// use caraspace::{diagram, SpytialDecorators};
 ///
 /// #[derive(Serialize, SpytialDecorators)]
 /// #[attribute(field = "name")]

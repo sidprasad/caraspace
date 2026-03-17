@@ -1,8 +1,30 @@
-/// Validation utilities for macro parameter checking
+/// Validation utilities for macro parameter checking.
+///
+/// These are currently used only by this module's tests. They define the
+/// expected parameter schemas for each constraint/directive type so that
+/// future compile-time or runtime validation can reference a single source
+/// of truth.
 use std::collections::HashMap;
 
+/// Parameter definition for constraint/directive validation
+#[derive(Debug, Clone)]
+enum ConstraintParamDef {
+    Single {
+        required: Vec<&'static str>,
+        optional: Vec<&'static str>,
+    },
+    Multiple(Vec<ParamSet>),
+}
+
+/// A set of parameters (for constraints that support multiple forms)
+#[derive(Debug, Clone)]
+struct ParamSet {
+    required: Vec<&'static str>,
+    optional: Vec<&'static str>,
+}
+
 /// Definition of valid parameters for each constraint type
-pub fn get_constraint_params() -> HashMap<&'static str, ConstraintParamDef> {
+fn get_constraint_params() -> HashMap<&'static str, ConstraintParamDef> {
     let mut params = HashMap::new();
 
     params.insert(
@@ -47,7 +69,7 @@ pub fn get_constraint_params() -> HashMap<&'static str, ConstraintParamDef> {
 }
 
 /// Definition of valid parameters for each directive type
-pub fn get_directive_params() -> HashMap<&'static str, ConstraintParamDef> {
+fn get_directive_params() -> HashMap<&'static str, ConstraintParamDef> {
     let mut params = HashMap::new();
 
     params.insert(
@@ -133,25 +155,8 @@ pub fn get_directive_params() -> HashMap<&'static str, ConstraintParamDef> {
     params
 }
 
-/// Parameter definition for constraint/directive validation
-#[derive(Debug, Clone)]
-pub enum ConstraintParamDef {
-    Single {
-        required: Vec<&'static str>,
-        optional: Vec<&'static str>,
-    },
-    Multiple(Vec<ParamSet>),
-}
-
-/// A set of parameters (for constraints that support multiple forms)
-#[derive(Debug, Clone)]
-pub struct ParamSet {
-    pub required: Vec<&'static str>,
-    pub optional: Vec<&'static str>,
-}
-
 /// Validate that provided parameters match the expected schema
-pub fn validate_params(
+fn validate_params(
     annotation_type: &str,
     provided_params: &[String],
     param_def: &ConstraintParamDef,
