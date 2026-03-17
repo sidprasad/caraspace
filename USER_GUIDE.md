@@ -2,7 +2,7 @@
 
 CaraSpace is the Rust-facing way to generate Spytial diagrams from Rust data.
 
-This repository is named `caraspace`, while the current Cargo package name is `json_data_instance_export`.
+The Cargo package name is `caraspace`.
 
 ## What You Get
 
@@ -17,14 +17,14 @@ Add the crate to your project:
 
 ```toml
 [dependencies]
-json_data_instance_export = { path = "/path/to/caraspace" }
+caraspace = { path = "/path/to/caraspace" }
 serde = { version = "1", features = ["derive"] }
 ```
 
 ## Quick Start
 
 ```rust
-use json_data_instance_export::{diagram, SpytialDecorators};
+use caraspace::{diagram, SpytialDecorators};
 use serde::Serialize;
 
 #[derive(Serialize, SpytialDecorators)]
@@ -67,7 +67,7 @@ fn main() {
 ### `diagram`
 
 ```rust
-use json_data_instance_export::diagram;
+use caraspace::diagram;
 ```
 
 Uses compile-time decorator collection and opens a generated HTML file in the default browser.
@@ -75,7 +75,7 @@ Uses compile-time decorator collection and opens a generated HTML file in the de
 ### `diagram_with_spec`
 
 ```rust
-use json_data_instance_export::diagram_with_spec;
+use caraspace::diagram_with_spec;
 ```
 
 Useful when you want to bypass derive-generated constraints and provide explicit YAML:
@@ -94,7 +94,7 @@ directives:
 ### `export_json_instance`
 
 ```rust
-use json_data_instance_export::export_json_instance;
+use caraspace::export_json_instance;
 ```
 
 Exports your Rust value without opening a browser. This is the right entry point if you want to integrate CaraSpace into another tool.
@@ -138,7 +138,7 @@ This means decorating `Person` is usually enough for those decorators to appear 
 If you need imperative control, use the `spytial_annotations` module directly:
 
 ```rust
-use json_data_instance_export::spytial_annotations::{annotate_instance, AnnotationBuilder};
+use caraspace::spytial_annotations::{annotate_instance, AnnotationBuilder};
 ```
 
 That path is better suited to advanced integrations than to the normal “derive and render” workflow.
@@ -181,7 +181,6 @@ After the example runs, the container serves the generated visualization at `htt
 
 - The browser rendering path relies on the embedded HTML template and bundled browser dependencies.
 - Compile-time type walking is intentionally conservative; it handles common wrappers, not arbitrary type-level programming.
-- The crate name and repository name do not currently match. In Cargo code samples, use `json_data_instance_export`.
 
 ## Where To Read Next
 

@@ -1,4 +1,4 @@
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -225,15 +225,15 @@ pub trait HasSpytialDecorators {
 }
 
 /// Global registry for instance-level annotations
-static INSTANCE_REGISTRY: Lazy<Mutex<HashMap<usize, SpytialDecorators>>> =
-    Lazy::new(|| Mutex::new(HashMap::new()));
+static INSTANCE_REGISTRY: LazyLock<Mutex<HashMap<usize, SpytialDecorators>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 /// Counter for generating unique instance IDs
-static INSTANCE_ID_COUNTER: Lazy<Mutex<usize>> = Lazy::new(|| Mutex::new(0));
+static INSTANCE_ID_COUNTER: LazyLock<Mutex<usize>> = LazyLock::new(|| Mutex::new(0));
 
 /// Global registry for type-level decorators keyed by type name
-static TYPE_REGISTRY: Lazy<Mutex<HashMap<String, SpytialDecorators>>> =
-    Lazy::new(|| Mutex::new(HashMap::new()));
+static TYPE_REGISTRY: LazyLock<Mutex<HashMap<String, SpytialDecorators>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 /// Register SpyTial decorators for a type (used by procedural macros)
 pub fn register_type_decorators(type_name: &str, decorators: SpytialDecorators) {
@@ -376,13 +376,13 @@ pub fn collect_instance_only_decorators<T>(instance: &T) -> SpytialDecorators {
 }
 
 /// Serialize decorators to YAML string
-pub fn to_yaml(decorators: &SpytialDecorators) -> Result<String, serde_yaml::Error> {
-    serde_yaml::to_string(decorators)
+pub fn to_yaml(decorators: &SpytialDecorators) -> Result<String, serde_yml::Error> {
+    serde_yml::to_string(decorators)
 }
 
 /// Helper function to get decorators for a type as YAML
 /// Convert type decorators to YAML
-pub fn to_yaml_for_type<T: HasSpytialDecorators>() -> Result<String, serde_yaml::Error> {
+pub fn to_yaml_for_type<T: HasSpytialDecorators>() -> Result<String, serde_yml::Error> {
     to_yaml(&T::decorators())
 }
 
@@ -390,7 +390,7 @@ pub fn to_yaml_for_type<T: HasSpytialDecorators>() -> Result<String, serde_yaml:
 /// Convert instance decorators to YAML
 pub fn to_yaml_for_instance<T: HasSpytialDecorators>(
     instance: &T,
-) -> Result<String, serde_yaml::Error> {
+) -> Result<String, serde_yml::Error> {
     to_yaml(&collect_decorators_for_instance(instance))
 }
 

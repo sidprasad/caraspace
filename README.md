@@ -2,7 +2,7 @@
 
 Spytial for Rust.
 
-The repository is called `caraspace`; the current crate package name is `json_data_instance_export`.
+The crate is published as `caraspace`.
 
 ## Documentation
 
