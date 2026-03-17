@@ -217,19 +217,57 @@ pub struct FlagDirective {
     pub flag: String,
 }
 
-/// Trait implemented by structs with SpyTial decorators
-/// All types have a default implementation that returns empty decorators
-/// Trait implemented by structs with SpyTial decorators
+/// Trait implemented by structs with SpyTial decorators.
+///
+/// Types that `#[derive(SpytialDecorators)]` get an implementation of this
+/// trait whose `decorators()` method returns the full set of constraints and
+/// directives declared via attributes on the type and its nested field types.
 pub trait HasSpytialDecorators {
     fn decorators() -> SpytialDecorators;
 }
 
-/// Global registry for instance-level annotations
-static INSTANCE_REGISTRY: LazyLock<Mutex<HashMap<usize, SpytialDecorators>>> =
-    LazyLock::new(|| Mutex::new(HashMap::new()));
+// ── Probe mechanism for safe compile-time decorator collection ──────────
+//
+// Problem: the derive macro needs to collect decorators from field types,
+// but it can't tell at macro-expansion time whether a type implements
+// `HasSpytialDecorators`.  Generating `.include_decorators_from_type::<T>()`
+// for a type that *doesn't* implement the trait would be a compile error.
+//
+// Solution: a zero-cost probe that resolves at the call-site (where the
+// concrete type is known).  Inherent methods always beat trait methods in
+// Rust's method resolution, so:
+//
+//   - If `T: HasSpytialDecorators` → the inherent `get()` is chosen → real
+//     decorators.
+//   - Otherwise → `DefaultDecorators::get()` is chosen → empty decorators.
+//
 
-/// Counter for generating unique instance IDs
-static INSTANCE_ID_COUNTER: LazyLock<Mutex<usize>> = LazyLock::new(|| Mutex::new(0));
+/// Zero-sized probe used by macro-generated code to safely collect
+/// decorators from a type that may or may not implement
+/// [`HasSpytialDecorators`].
+pub struct DecoProbe<T>(pub ::std::marker::PhantomData<T>);
+
+/// Inherent impl – available only when `T` has the derive.
+/// Because inherent methods take priority over trait methods, this is
+/// chosen whenever it exists.
+impl<T: HasSpytialDecorators> DecoProbe<T> {
+    pub fn get(self) -> SpytialDecorators {
+        T::decorators()
+    }
+}
+
+/// Blanket fallback – available for *every* `T`.  Chosen only when the
+/// inherent `get` above does not exist (i.e. `T` does not implement
+/// `HasSpytialDecorators`).
+pub trait DefaultDecorators {
+    fn get(self) -> SpytialDecorators;
+}
+
+impl<T> DefaultDecorators for DecoProbe<T> {
+    fn get(self) -> SpytialDecorators {
+        SpytialDecorators::default()
+    }
+}
 
 /// Global registry for type-level decorators keyed by type name
 static TYPE_REGISTRY: LazyLock<Mutex<HashMap<String, SpytialDecorators>>> =
@@ -248,201 +286,9 @@ pub fn get_type_decorators(type_name: &str) -> Option<SpytialDecorators> {
     registry.get(type_name).cloned()
 }
 
-/// Annotation to apply to an instance at runtime
-#[derive(Debug, Clone)]
-pub struct Annotation {
-    pub annotation_type: String,
-    pub params: HashMap<String, serde_json::Value>,
-}
-
-/// Apply an annotation to an instance at runtime
-pub fn annotate_instance<T>(instance: &mut T, annotation: Annotation) {
-    let instance_addr = instance as *const T as usize;
-    let mut registry = INSTANCE_REGISTRY.lock().unwrap();
-
-    let decorators = registry.entry(instance_addr).or_default();
-
-    // Convert annotation to appropriate constraint or directive
-    match annotation.annotation_type.as_str() {
-        "orientation" => {
-            if let (Some(selector), Some(directions)) = (
-                annotation.params.get("selector").and_then(|v| v.as_str()),
-                annotation
-                    .params
-                    .get("directions")
-                    .and_then(|v| v.as_array()),
-            ) {
-                let dirs: Vec<String> = directions
-                    .iter()
-                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
-                    .collect();
-
-                decorators
-                    .constraints
-                    .push(Constraint::Orientation(OrientationConstraint {
-                        orientation: OrientationParams {
-                            selector: substitute_self_reference(selector, instance_addr),
-                            directions: dirs,
-                        },
-                    }));
-            }
-        }
-        "align" => {
-            if let (Some(selector), Some(direction)) = (
-                annotation.params.get("selector").and_then(|v| v.as_str()),
-                annotation.params.get("direction").and_then(|v| v.as_str()),
-            ) {
-                decorators
-                    .constraints
-                    .push(Constraint::Align(AlignConstraint {
-                        align: AlignParams {
-                            selector: substitute_self_reference(selector, instance_addr),
-                            direction: direction.to_string(),
-                        },
-                    }));
-            }
-        }
-        "cyclic" => {
-            if let (Some(selector), Some(direction)) = (
-                annotation.params.get("selector").and_then(|v| v.as_str()),
-                annotation.params.get("direction").and_then(|v| v.as_str()),
-            ) {
-                decorators
-                    .constraints
-                    .push(Constraint::Cyclic(CyclicConstraint {
-                        cyclic: CyclicParams {
-                            selector: substitute_self_reference(selector, instance_addr),
-                            direction: direction.to_string(),
-                        },
-                    }));
-            }
-        }
-        "atomColor" => {
-            if let (Some(selector), Some(value)) = (
-                annotation.params.get("selector").and_then(|v| v.as_str()),
-                annotation.params.get("value").and_then(|v| v.as_str()),
-            ) {
-                decorators
-                    .directives
-                    .push(Directive::AtomColor(AtomColorDirective {
-                        atom_color: AtomColorParams {
-                            selector: substitute_self_reference(selector, instance_addr),
-                            value: value.to_string(),
-                        },
-                    }));
-            }
-        }
-        "flag" => {
-            if let Some(name) = annotation.params.get("name").and_then(|v| v.as_str()) {
-                decorators.directives.push(Directive::Flag(FlagDirective {
-                    flag: name.to_string(),
-                }));
-            }
-        }
-        // Add other annotation types as needed
-        _ => {} // Unknown annotation type, ignore or handle error
-    }
-}
-
-/// Collect decorators for both type and instance
-pub fn collect_decorators_for_instance<T: HasSpytialDecorators>(instance: &T) -> SpytialDecorators {
-    let mut combined = T::decorators();
-
-    let instance_addr = instance as *const T as usize;
-    let registry = INSTANCE_REGISTRY.lock().unwrap();
-
-    if let Some(instance_decorators) = registry.get(&instance_addr) {
-        combined
-            .constraints
-            .extend(instance_decorators.constraints.clone());
-        combined
-            .directives
-            .extend(instance_decorators.directives.clone());
-    }
-
-    combined
-}
-
-/// Collect only instance-level decorators (without type decorators)
-pub fn collect_instance_only_decorators<T>(instance: &T) -> SpytialDecorators {
-    let instance_addr = instance as *const T as usize;
-    let registry = INSTANCE_REGISTRY.lock().unwrap();
-
-    if let Some(instance_decorators) = registry.get(&instance_addr) {
-        instance_decorators.clone()
-    } else {
-        SpytialDecorators::default()
-    }
-}
-
 /// Serialize decorators to YAML string
 pub fn to_yaml(decorators: &SpytialDecorators) -> Result<String, serde_yml::Error> {
     serde_yml::to_string(decorators)
-}
-
-/// Helper function to get decorators for a type as YAML
-/// Convert type decorators to YAML
-pub fn to_yaml_for_type<T: HasSpytialDecorators>() -> Result<String, serde_yml::Error> {
-    to_yaml(&T::decorators())
-}
-
-/// Helper function to get decorators for an instance as YAML
-/// Convert instance decorators to YAML
-pub fn to_yaml_for_instance<T: HasSpytialDecorators>(
-    instance: &T,
-) -> Result<String, serde_yml::Error> {
-    to_yaml(&collect_decorators_for_instance(instance))
-}
-
-/// Helper function to automatically register types based on the root type
-/// This examines the struct definition and attempts to register commonly used nested types
-pub fn auto_register_related_types<T: HasSpytialDecorators + Serialize>() {
-    // Always register the root type
-    let _ = T::decorators();
-
-    // For now, users still need to manually register, but this provides a cleaner API
-}
-
-/// Helper to register types without explicit enumeration
-/// This will be enhanced in the future to support automatic discovery
-pub fn auto_register_types() {
-    // This is a placeholder for automatic type discovery
-    // In the future, this could use reflection or other mechanisms
-}
-
-/// Users should call this for their root data type to enable recursive decorator collection
-pub fn ensure_types_registered<T: HasSpytialDecorators>() {
-    let _ = T::decorators();
-}
-
-/// Register a type and its common field types
-/// This is a convenience function for common patterns
-pub fn register_types<T1: HasSpytialDecorators>() {
-    let _ = T1::decorators();
-}
-
-/// Register two types' decorators
-pub fn register_types2<T1: HasSpytialDecorators, T2: HasSpytialDecorators>() {
-    let _ = T1::decorators();
-    let _ = T2::decorators();
-}
-
-/// Register three types and their decorators
-pub fn register_types3<
-    T1: HasSpytialDecorators,
-    T2: HasSpytialDecorators,
-    T3: HasSpytialDecorators,
->() {
-    let _ = T1::decorators();
-    let _ = T2::decorators();
-    let _ = T3::decorators();
-}
-
-/// Replace "self" in selector with instance-specific identifier
-fn substitute_self_reference(selector: &str, _instance_addr: usize) -> String {
-    let mut counter = INSTANCE_ID_COUNTER.lock().unwrap();
-    *counter += 1;
-    selector.replace("self", &format!("obj_{}", *counter))
 }
 
 /// Builder for constructing spatial decorators
@@ -623,8 +469,7 @@ impl SpytialDecoratorsBuilder {
         self
     }
 
-    /// Include decorators from another type that implements HasSpytialDecorators
-    /// This is used for compile-time decorator collection from field types
+    /// Include decorators from another type that implements HasSpytialDecorators.
     pub fn include_decorators_from_type<T: HasSpytialDecorators>(mut self) -> Self {
         let other_decorators = T::decorators();
         self.constraints.extend(other_decorators.constraints);
@@ -632,102 +477,21 @@ impl SpytialDecoratorsBuilder {
         self
     }
 
+    /// Merge another set of decorators into this builder.
+    ///
+    /// Used by the derive macro together with [`DecoProbe`] for safe
+    /// compile-time decorator collection from field types that may or may
+    /// not implement [`HasSpytialDecorators`].
+    pub fn extend_with(mut self, other: SpytialDecorators) -> Self {
+        self.constraints.extend(other.constraints);
+        self.directives.extend(other.directives);
+        self
+    }
+
     pub fn build(self) -> SpytialDecorators {
         SpytialDecorators {
             constraints: self.constraints,
             directives: self.directives,
-        }
-    }
-}
-
-/// Builder for creating individual annotations
-#[derive(Debug)]
-pub struct AnnotationBuilder;
-
-impl AnnotationBuilder {
-    pub fn orientation(selector: &str, directions: Vec<&str>) -> Annotation {
-        let mut params = std::collections::HashMap::new();
-        params.insert(
-            "selector".to_string(),
-            serde_json::Value::String(selector.to_string()),
-        );
-        params.insert(
-            "directions".to_string(),
-            serde_json::Value::Array(
-                directions
-                    .iter()
-                    .map(|s| serde_json::Value::String(s.to_string()))
-                    .collect(),
-            ),
-        );
-
-        Annotation {
-            annotation_type: "orientation".to_string(),
-            params,
-        }
-    }
-
-    pub fn cyclic(selector: &str, direction: &str) -> Annotation {
-        let mut params = std::collections::HashMap::new();
-        params.insert(
-            "selector".to_string(),
-            serde_json::Value::String(selector.to_string()),
-        );
-        params.insert(
-            "direction".to_string(),
-            serde_json::Value::String(direction.to_string()),
-        );
-
-        Annotation {
-            annotation_type: "cyclic".to_string(),
-            params,
-        }
-    }
-
-    pub fn align(selector: &str, direction: &str) -> Annotation {
-        let mut params = std::collections::HashMap::new();
-        params.insert(
-            "selector".to_string(),
-            serde_json::Value::String(selector.to_string()),
-        );
-        params.insert(
-            "direction".to_string(),
-            serde_json::Value::String(direction.to_string()),
-        );
-
-        Annotation {
-            annotation_type: "align".to_string(),
-            params,
-        }
-    }
-
-    pub fn atom_color(selector: &str, value: &str) -> Annotation {
-        let mut params = std::collections::HashMap::new();
-        params.insert(
-            "selector".to_string(),
-            serde_json::Value::String(selector.to_string()),
-        );
-        params.insert(
-            "value".to_string(),
-            serde_json::Value::String(value.to_string()),
-        );
-
-        Annotation {
-            annotation_type: "atomColor".to_string(),
-            params,
-        }
-    }
-
-    pub fn flag(name: &str) -> Annotation {
-        let mut params = std::collections::HashMap::new();
-        params.insert(
-            "name".to_string(),
-            serde_json::Value::String(name.to_string()),
-        );
-
-        Annotation {
-            annotation_type: "flag".to_string(),
-            params,
         }
     }
 }
@@ -771,39 +535,4 @@ mod tests {
         assert!(yaml.contains("flag"));
     }
 
-    #[test]
-    fn test_runtime_align_annotation_is_collected() {
-        struct RuntimeAnnotated;
-
-        impl HasSpytialDecorators for RuntimeAnnotated {
-            fn decorators() -> SpytialDecorators {
-                SpytialDecorators::default()
-            }
-        }
-
-        let mut instance = RuntimeAnnotated;
-        annotate_instance(
-            &mut instance,
-            AnnotationBuilder::align("self.peer", "vertical"),
-        );
-
-        let decorators = collect_instance_only_decorators(&instance);
-        assert_eq!(decorators.constraints.len(), 1);
-
-        match &decorators.constraints[0] {
-            Constraint::Align(align) => {
-                assert_eq!(align.align.direction, "vertical");
-                assert!(align.align.selector.starts_with("obj_"));
-                assert!(align.align.selector.ends_with(".peer"));
-            }
-            other => panic!("expected align constraint, got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn test_self_reference_substitution() {
-        let result = substitute_self_reference("self.field", 12345);
-        assert!(result.starts_with("obj_"));
-        assert!(result.contains(".field"));
-    }
 }
