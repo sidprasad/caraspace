@@ -74,6 +74,90 @@ struct MultiTagged {
     id: u32,
 }
 
+#[derive(Serialize, SpytialDecorators)]
+#[edge_style(field = "left", value = "#000000")]
+struct EdgeStyledMinimal {
+    id: u32,
+}
+
+#[test]
+fn edge_style_directive_minimal() {
+    let decorators = EdgeStyledMinimal::decorators();
+
+    let edge = decorators
+        .directives
+        .iter()
+        .find_map(|d| match d {
+            Directive::EdgeStyle(e) => Some(&e.edge_style),
+            _ => None,
+        })
+        .expect("expected an EdgeStyle directive");
+
+    assert_eq!(edge.field, "left");
+    assert_eq!(edge.value, "#000000");
+    assert!(edge.style.is_none());
+    assert!(edge.weight.is_none());
+    assert!(edge.show_label.is_none());
+    assert!(edge.hidden.is_none());
+    assert!(edge.filter.is_none());
+    assert!(edge.selector.is_none());
+
+    let yaml = to_yaml(&decorators).unwrap();
+    assert!(yaml.contains("edgeColor:"));
+    assert!(yaml.contains("field: left"));
+    // Optional fields are skipped when None.
+    assert!(!yaml.contains("style:"));
+    assert!(!yaml.contains("weight:"));
+    assert!(!yaml.contains("showLabel:"));
+    assert!(!yaml.contains("hidden:"));
+}
+
+#[derive(Serialize, SpytialDecorators)]
+#[edge_style(
+    field = "right",
+    value = "blue",
+    style = "dashed",
+    weight = 2.5,
+    show_label = false,
+    hidden = true,
+    filter = "Node3 -> Node1",
+    selector = "Tree"
+)]
+struct EdgeStyledAllOptions {
+    id: u32,
+}
+
+#[test]
+fn edge_style_directive_all_options() {
+    let decorators = EdgeStyledAllOptions::decorators();
+
+    let edge = decorators
+        .directives
+        .iter()
+        .find_map(|d| match d {
+            Directive::EdgeStyle(e) => Some(&e.edge_style),
+            _ => None,
+        })
+        .expect("expected an EdgeStyle directive");
+
+    assert_eq!(edge.field, "right");
+    assert_eq!(edge.value, "blue");
+    assert_eq!(edge.style.as_deref(), Some("dashed"));
+    assert_eq!(edge.weight, Some(2.5));
+    assert_eq!(edge.show_label, Some(false));
+    assert_eq!(edge.hidden, Some(true));
+    assert_eq!(edge.filter.as_deref(), Some("Node3 -> Node1"));
+    assert_eq!(edge.selector.as_deref(), Some("Tree"));
+
+    let yaml = to_yaml(&decorators).unwrap();
+    assert!(yaml.contains("edgeColor:"));
+    assert!(yaml.contains("style: dashed"));
+    assert!(yaml.contains("weight: 2.5"));
+    assert!(yaml.contains("showLabel: false"));
+    assert!(yaml.contains("hidden: true"));
+    assert!(yaml.contains("filter: Node3"));
+}
+
 #[test]
 fn tag_directive_multiple() {
     let decorators = MultiTagged::decorators();

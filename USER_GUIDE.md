@@ -114,7 +114,7 @@ These map onto the Rust builder and YAML serialization layer in `spytial_annotat
 | `#[atom_color(selector = "...", value = "...")]` | Color nodes |
 | `#[size(selector = "...", height = 40, width = 60)]` | Set node size |
 | `#[icon(selector = "...", path = "...", show_labels = true)]` | Set node icon |
-| `#[edge_color(field = "...", value = "...")]` | Color edges |
+| `#[edge_style(field = "...", value = "...", style = "dashed", weight = 2.0, show_label = true, hidden = false, filter = "...", selector = "...")]` | Style edges (color, line style, weight, visibility) |
 | `#[projection(sig = "...")]` | Projection directive |
 | `#[hide_field(field = "...")]` | Hide a relation |
 | `#[hide_atom(selector = "...")]` | Hide selected atoms |
