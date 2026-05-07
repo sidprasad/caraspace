@@ -36,7 +36,7 @@ pub enum Directive {
     AtomColor(AtomColorDirective),
     Size(SizeDirective),
     Icon(IconDirective),
-    EdgeColor(EdgeColorDirective),
+    EdgeStyle(EdgeStyleDirective),
     Projection(ProjectionDirective),
     Attribute(AttributeDirective),
     HideField(HideFieldDirective),
@@ -141,18 +141,36 @@ pub struct IconParams {
     pub show_labels: bool,
 }
 
+/// `EdgeStyleDirective` is the canonical edge-styling directive — color,
+/// line style, weight, label visibility, and edge visibility in one
+/// directive. Mirrors `EdgeStyleDirective` in `spytial-core`'s
+/// `src/layout/layoutspec.ts`.
+///
+/// The wire-format YAML key is `edgeColor:` (kept for backwards
+/// compatibility with `spytial-core`'s parser, where `EdgeColorDirective`
+/// is a type alias for `EdgeStyleDirective`).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct EdgeColorDirective {
+pub struct EdgeStyleDirective {
     #[serde(rename = "edgeColor")]
-    pub edge_color: EdgeColorParams,
+    pub edge_style: EdgeStyleParams,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct EdgeColorParams {
+pub struct EdgeStyleParams {
     pub field: String,
     pub value: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selector: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub filter: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub style: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub weight: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none", rename = "showLabel")]
+    pub show_label: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hidden: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -423,13 +441,29 @@ impl SpytialDecoratorsBuilder {
         self
     }
 
-    pub fn edge_color(mut self, field: &str, value: &str, selector: Option<&str>) -> Self {
+    #[allow(clippy::too_many_arguments)]
+    pub fn edge_style(
+        mut self,
+        field: &str,
+        value: &str,
+        selector: Option<&str>,
+        filter: Option<&str>,
+        style: Option<&str>,
+        weight: Option<f64>,
+        show_label: Option<bool>,
+        hidden: Option<bool>,
+    ) -> Self {
         self.directives
-            .push(Directive::EdgeColor(EdgeColorDirective {
-                edge_color: EdgeColorParams {
+            .push(Directive::EdgeStyle(EdgeStyleDirective {
+                edge_style: EdgeStyleParams {
                     field: field.to_string(),
                     value: value.to_string(),
                     selector: selector.map(|s| s.to_string()),
+                    filter: filter.map(|s| s.to_string()),
+                    style: style.map(|s| s.to_string()),
+                    weight,
+                    show_label,
+                    hidden,
                 },
             }));
         self

@@ -136,7 +136,7 @@ fn generate_probe_call(type_name: &str) -> proc_macro2::TokenStream {
 /// - `#[atom_color(selector = "sel", value = "red")]` - Adds atom color directive
 /// - `#[size(selector = "sel", height = 20, width = 30)]` - Adds size directive
 /// - `#[icon(selector = "sel", path = "icon.png", show_labels = true)]` - Adds icon directive
-/// - `#[edge_color(field = "field", value = "blue")]` - Adds edge color directive
+/// - `#[edge_style(field = "field", value = "blue", style = "dashed", weight = 2.0, show_label = true, hidden = false, filter = "...", selector = "...")]` - Adds edge style directive (replaces edge_color)
 /// - `#[projection(sig = "signature")]` - Adds projection directive
 /// - `#[hide_field(field = "field")]` - Adds hide field directive
 /// - `#[hide_atom(selector = "sel")]` - Adds hide atom directive
@@ -156,7 +156,7 @@ fn generate_probe_call(type_name: &str) -> proc_macro2::TokenStream {
 ///     age: u32,
 /// }
 /// ```
-#[proc_macro_derive(SpytialDecorators, attributes(attribute, flag, orientation, align, cyclic, group, atom_color, size, icon, edge_color, projection, hide_field, hide_atom, inferred_edge, tag))]
+#[proc_macro_derive(SpytialDecorators, attributes(attribute, flag, orientation, align, cyclic, group, atom_color, size, icon, edge_style, projection, hide_field, hide_atom, inferred_edge, tag))]
 pub fn derive_spytial_decorators(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     
@@ -219,13 +219,45 @@ pub fn derive_spytial_decorators(input: TokenStream) -> TokenStream {
                     .icon(#selector, #path, #show_labels)
                 });
             }
-            Some(SpatialAttribute::EdgeColor { field, value, selector }) => {
-                let selector_arg = match selector {
+            Some(SpatialAttribute::EdgeStyle {
+                field,
+                value,
+                selector,
+                filter,
+                style,
+                weight,
+                show_label,
+                hidden,
+            }) => {
+                let opt_str = |v: Option<String>| match v {
                     Some(s) => quote! { Some(#s) },
                     None => quote! { None },
                 };
+                let opt_f64 = |v: Option<f64>| match v {
+                    Some(n) => quote! { Some(#n) },
+                    None => quote! { None },
+                };
+                let opt_bool = |v: Option<bool>| match v {
+                    Some(b) => quote! { Some(#b) },
+                    None => quote! { None },
+                };
+                let selector_arg = opt_str(selector);
+                let filter_arg = opt_str(filter);
+                let style_arg = opt_str(style);
+                let weight_arg = opt_f64(weight);
+                let show_label_arg = opt_bool(show_label);
+                let hidden_arg = opt_bool(hidden);
                 decorator_calls.push(quote! {
-                    .edge_color(#field, #value, #selector_arg)
+                    .edge_style(
+                        #field,
+                        #value,
+                        #selector_arg,
+                        #filter_arg,
+                        #style_arg,
+                        #weight_arg,
+                        #show_label_arg,
+                        #hidden_arg,
+                    )
                 });
             }
             Some(SpatialAttribute::Projection { sig }) => {
@@ -309,7 +341,16 @@ enum SpatialAttribute {
     AtomColor { selector: String, value: String },
     Size { selector: String, height: u32, width: u32 },
     Icon { selector: String, path: String, show_labels: bool },
-    EdgeColor { field: String, value: String, selector: Option<String> },
+    EdgeStyle {
+        field: String,
+        value: String,
+        selector: Option<String>,
+        filter: Option<String>,
+        style: Option<String>,
+        weight: Option<f64>,
+        show_label: Option<bool>,
+        hidden: Option<bool>,
+    },
     Projection { sig: String },
     HideField { field: String, selector: Option<String> },
     HideAtom { selector: String },
@@ -338,8 +379,8 @@ fn parse_spatial_attribute(attr: &Attribute) -> Option<SpatialAttribute> {
         parse_size_args(attr)
     } else if path.is_ident("icon") {
         parse_icon_args(attr)
-    } else if path.is_ident("edge_color") {
-        parse_edge_color_args(attr)
+    } else if path.is_ident("edge_style") {
+        parse_edge_style_args(attr)
     } else if path.is_ident("projection") {
         parse_projection_args(attr)
     } else if path.is_ident("hide_field") {
@@ -493,16 +534,37 @@ fn parse_icon_args(attr: &Attribute) -> Option<SpatialAttribute> {
     }
 }
 
-fn parse_edge_color_args(attr: &Attribute) -> Option<SpatialAttribute> {
+fn parse_edge_style_args(attr: &Attribute) -> Option<SpatialAttribute> {
     if let Ok(meta) = attr.meta.require_list() {
         let tokens = &meta.tokens;
-        let token_str = tokens.to_string();
-        
-        let field = extract_string_from_tokens(&token_str, "field").unwrap_or_else(|| "relation".to_string());
-        let value = extract_string_from_tokens(&token_str, "value").unwrap_or_else(|| "blue".to_string());
+        // Normalize line breaks/tabs to spaces so the extractors below
+        // (which match `key = ` / `key = "`) work even when proc-macro2
+        // wraps long attribute lists across multiple lines.
+        let token_str = tokens
+            .to_string()
+            .replace(['\n', '\r', '\t'], " ");
+
+        let field = extract_string_from_tokens(&token_str, "field")
+            .unwrap_or_else(|| "relation".to_string());
+        let value = extract_string_from_tokens(&token_str, "value")
+            .unwrap_or_else(|| "blue".to_string());
         let selector = extract_string_from_tokens(&token_str, "selector");
-        
-        Some(SpatialAttribute::EdgeColor { field, value, selector })
+        let filter = extract_string_from_tokens(&token_str, "filter");
+        let style = extract_string_from_tokens(&token_str, "style");
+        let weight = extract_float_from_tokens(&token_str, "weight");
+        let show_label = extract_bool_from_tokens(&token_str, "show_label");
+        let hidden = extract_bool_from_tokens(&token_str, "hidden");
+
+        Some(SpatialAttribute::EdgeStyle {
+            field,
+            value,
+            selector,
+            filter,
+            style,
+            weight,
+            show_label,
+            hidden,
+        })
     } else {
         None
     }
@@ -617,6 +679,19 @@ fn extract_bool_from_tokens(tokens: &str, key: &str) -> Option<bool> {
         let rest = &tokens[start..];
         let end = rest.find([',', ' ', ')']).unwrap_or(rest.len());
         if let Ok(value) = rest[..end].trim().parse::<bool>() {
+            return Some(value);
+        }
+    }
+    None
+}
+
+fn extract_float_from_tokens(tokens: &str, key: &str) -> Option<f64> {
+    let pattern = format!("{} = ", key);
+    if let Some(start) = tokens.find(&pattern) {
+        let start = start + pattern.len();
+        let rest = &tokens[start..];
+        let end = rest.find([',', ' ', ')']).unwrap_or(rest.len());
+        if let Ok(value) = rest[..end].trim().parse::<f64>() {
             return Some(value);
         }
     }
