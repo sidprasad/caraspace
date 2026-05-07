@@ -119,6 +119,7 @@ These map onto the Rust builder and YAML serialization layer in `spytial_annotat
 | `#[hide_field(field = "...")]` | Hide a relation |
 | `#[hide_atom(selector = "...")]` | Hide selected atoms |
 | `#[inferred_edge(name = "...", selector = "...")]` | Add inferred edges |
+| `#[tag(to_tag = "...", name = "...", value = "...")]` | Tag matching atoms with computed attribute |
 
 ## Compile-Time Behavior
 

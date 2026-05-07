@@ -42,6 +42,7 @@ pub enum Directive {
     HideField(HideFieldDirective),
     HideAtom(HideAtomDirective),
     InferredEdge(InferredEdgeDirective),
+    Tag(TagDirective),
     Flag(FlagDirective),
 }
 
@@ -210,6 +211,30 @@ pub struct InferredEdgeDirective {
 pub struct InferredEdgeParams {
     pub name: String,
     pub selector: String,
+}
+
+/// `TagDirective` adds computed attributes to nodes based on n-ary selector
+/// evaluation. Mirrors `TagDirective` in `spytial-core`'s
+/// `src/layout/layoutspec.ts` — the canonical YAML form is:
+///
+/// ```yaml
+/// directives:
+///   - tag:
+///       toTag: 'Person'
+///       name: 'status'
+///       value: 'Person.status'
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TagDirective {
+    pub tag: TagParams,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TagParams {
+    #[serde(rename = "toTag")]
+    pub to_tag: String,
+    pub name: String,
+    pub value: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -465,6 +490,17 @@ impl SpytialDecoratorsBuilder {
     pub fn flag(mut self, name: &str) -> Self {
         self.directives.push(Directive::Flag(FlagDirective {
             flag: name.to_string(),
+        }));
+        self
+    }
+
+    pub fn tag(mut self, to_tag: &str, name: &str, value: &str) -> Self {
+        self.directives.push(Directive::Tag(TagDirective {
+            tag: TagParams {
+                to_tag: to_tag.to_string(),
+                name: name.to_string(),
+                value: value.to_string(),
+            },
         }));
         self
     }
