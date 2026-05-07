@@ -141,7 +141,8 @@ fn generate_probe_call(type_name: &str) -> proc_macro2::TokenStream {
 /// - `#[hide_field(field = "field")]` - Adds hide field directive
 /// - `#[hide_atom(selector = "sel")]` - Adds hide atom directive
 /// - `#[inferred_edge(name = "edge", selector = "sel")]` - Adds inferred edge directive
-/// 
+/// - `#[tag(to_tag = "sel", name = "attr", value = "n-ary selector")]` - Adds tag directive
+///
 /// # Example
 /// ```rust
 /// use serde::Serialize;
@@ -155,7 +156,7 @@ fn generate_probe_call(type_name: &str) -> proc_macro2::TokenStream {
 ///     age: u32,
 /// }
 /// ```
-#[proc_macro_derive(SpytialDecorators, attributes(attribute, flag, orientation, align, cyclic, group, atom_color, size, icon, edge_color, projection, hide_field, hide_atom, inferred_edge))]
+#[proc_macro_derive(SpytialDecorators, attributes(attribute, flag, orientation, align, cyclic, group, atom_color, size, icon, edge_color, projection, hide_field, hide_atom, inferred_edge, tag))]
 pub fn derive_spytial_decorators(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     
@@ -251,6 +252,11 @@ pub fn derive_spytial_decorators(input: TokenStream) -> TokenStream {
                     .inferred_edge(#name, #selector)
                 });
             }
+            Some(SpatialAttribute::Tag { to_tag, name, value }) => {
+                decorator_calls.push(quote! {
+                    .tag(#to_tag, #name, #value)
+                });
+            }
             None => {}
         }
     }
@@ -308,6 +314,7 @@ enum SpatialAttribute {
     HideField { field: String, selector: Option<String> },
     HideAtom { selector: String },
     InferredEdge { name: String, selector: String },
+    Tag { to_tag: String, name: String, value: String },
 }
 
 fn parse_spatial_attribute(attr: &Attribute) -> Option<SpatialAttribute> {
@@ -341,6 +348,8 @@ fn parse_spatial_attribute(attr: &Attribute) -> Option<SpatialAttribute> {
         parse_hide_atom_args(attr)
     } else if path.is_ident("inferred_edge") {
         parse_inferred_edge_args(attr)
+    } else if path.is_ident("tag") {
+        parse_tag_args(attr)
     } else {
         None
     }
@@ -543,11 +552,26 @@ fn parse_inferred_edge_args(attr: &Attribute) -> Option<SpatialAttribute> {
     if let Ok(meta) = attr.meta.require_list() {
         let tokens = &meta.tokens;
         let token_str = tokens.to_string();
-        
+
         let name = extract_string_from_tokens(&token_str, "name").unwrap_or_else(|| "edge".to_string());
         let selector = extract_string_from_tokens(&token_str, "selector").unwrap_or_else(|| "".to_string());
-        
+
         Some(SpatialAttribute::InferredEdge { name, selector })
+    } else {
+        None
+    }
+}
+
+fn parse_tag_args(attr: &Attribute) -> Option<SpatialAttribute> {
+    if let Ok(meta) = attr.meta.require_list() {
+        let tokens = &meta.tokens;
+        let token_str = tokens.to_string();
+
+        let to_tag = extract_string_from_tokens(&token_str, "to_tag").unwrap_or_default();
+        let name = extract_string_from_tokens(&token_str, "name").unwrap_or_default();
+        let value = extract_string_from_tokens(&token_str, "value").unwrap_or_default();
+
+        Some(SpatialAttribute::Tag { to_tag, name, value })
     } else {
         None
     }
