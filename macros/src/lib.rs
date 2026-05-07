@@ -128,11 +128,11 @@ fn generate_probe_call(type_name: &str) -> proc_macro2::TokenStream {
 /// # Supported Attributes
 /// - `#[attribute(field = "field_name")]` - Adds attribute directive
 /// - `#[flag(name = "flag_name")]` - Adds flag directive  
-/// - `#[orientation(selector = "sel", directions = ["up", "down"])]` - Adds orientation constraint
-/// - `#[align(selector = "sel", direction = "horizontal")]` - Adds align constraint
-/// - `#[cyclic(selector = "sel", direction = "up")]` - Adds cyclic constraint
-/// - `#[group(selector = "sel", name = "group_name")]` - Adds selector-based group constraint
-/// - `#[group(field = "field", group_on = 1, add_to_group = 2)]` - Adds field-based group constraint
+/// - `#[orientation(selector = "sel", directions = ["up", "down"], negated = true)]` - Adds orientation constraint (`negated` optional)
+/// - `#[align(selector = "sel", direction = "horizontal", negated = true)]` - Adds align constraint (`negated` optional)
+/// - `#[cyclic(selector = "sel", direction = "up", negated = true)]` - Adds cyclic constraint (`negated` optional)
+/// - `#[group(selector = "sel", name = "group_name", negated = true)]` - Adds selector-based group constraint (`negated` optional)
+/// - `#[group(field = "field", group_on = 1, add_to_group = 2, negated = true)]` - Adds field-based group constraint (`negated` optional)
 /// - `#[atom_color(selector = "sel", value = "red")]` - Adds atom color directive
 /// - `#[size(selector = "sel", height = 20, width = 30)]` - Adds size directive
 /// - `#[icon(selector = "sel", path = "icon.png", show_labels = true)]` - Adds icon directive
@@ -179,29 +179,29 @@ pub fn derive_spytial_decorators(input: TokenStream) -> TokenStream {
                     .flag(#name)
                 });
             }
-            Some(SpatialAttribute::Orientation { selector, directions }) => {
+            Some(SpatialAttribute::Orientation { selector, directions, negated }) => {
                 decorator_calls.push(quote! {
-                    .orientation(#selector, vec![#(#directions),*])
+                    .orientation(#selector, vec![#(#directions),*], #negated)
                 });
             }
-            Some(SpatialAttribute::Align { selector, direction }) => {
+            Some(SpatialAttribute::Align { selector, direction, negated }) => {
                 decorator_calls.push(quote! {
-                    .align(#selector, #direction)
+                    .align(#selector, #direction, #negated)
                 });
             }
-            Some(SpatialAttribute::Cyclic { selector, direction }) => {
+            Some(SpatialAttribute::Cyclic { selector, direction, negated }) => {
                 decorator_calls.push(quote! {
-                    .cyclic(#selector, #direction)
+                    .cyclic(#selector, #direction, #negated)
                 });
             }
-            Some(SpatialAttribute::GroupSelector { selector, name }) => {
+            Some(SpatialAttribute::GroupSelector { selector, name, negated }) => {
                 decorator_calls.push(quote! {
-                    .group_selector_based(#selector, #name)
+                    .group_selector_based(#selector, #name, #negated)
                 });
             }
-            Some(SpatialAttribute::GroupField { field, group_on, add_to_group }) => {
+            Some(SpatialAttribute::GroupField { field, group_on, add_to_group, negated }) => {
                 decorator_calls.push(quote! {
-                    .group_field_based(#field, #group_on, #add_to_group, None)
+                    .group_field_based(#field, #group_on, #add_to_group, None, #negated)
                 });
             }
             Some(SpatialAttribute::AtomColor { selector, value }) => {
@@ -333,11 +333,11 @@ pub fn derive_spytial_decorators(input: TokenStream) -> TokenStream {
 enum SpatialAttribute {
     Attribute { field: String },
     Flag { name: String },
-    Orientation { selector: String, directions: Vec<String> },
-    Align { selector: String, direction: String },
-    Cyclic { selector: String, direction: String },
-    GroupSelector { selector: String, name: String },
-    GroupField { field: String, group_on: u32, add_to_group: u32 },
+    Orientation { selector: String, directions: Vec<String>, negated: bool },
+    Align { selector: String, direction: String, negated: bool },
+    Cyclic { selector: String, direction: String, negated: bool },
+    GroupSelector { selector: String, name: String, negated: bool },
+    GroupField { field: String, group_on: u32, add_to_group: u32, negated: bool },
     AtomColor { selector: String, value: String },
     Size { selector: String, height: u32, width: u32 },
     Icon { selector: String, path: String, show_labels: bool },
@@ -426,36 +426,38 @@ fn parse_flag_args(attr: &Attribute) -> Option<SpatialAttribute> {
 fn parse_orientation_args(attr: &Attribute) -> Option<SpatialAttribute> {
     if let Ok(meta) = attr.meta.require_list() {
         let tokens = &meta.tokens;
-        let token_str = tokens.to_string();
-        
+        let token_str = normalize_whitespace(&tokens.to_string());
+
         let selector = extract_string_from_tokens(&token_str, "selector").unwrap_or_else(|| "".to_string());
         let directions = extract_array_from_tokens(&token_str, "directions")
             .unwrap_or_else(|| vec!["up".to_string(), "down".to_string()]);
-        
-        return Some(SpatialAttribute::Orientation { selector, directions });
+        let negated = extract_bool_from_tokens(&token_str, "negated").unwrap_or(false);
+
+        return Some(SpatialAttribute::Orientation { selector, directions, negated });
     }
-    
+
     None
 }
 
 fn parse_group_args(attr: &Attribute) -> Option<SpatialAttribute> {
     if let Ok(meta) = attr.meta.require_list() {
         let tokens = &meta.tokens;
-        let token_str = tokens.to_string();
-        
+        let token_str = normalize_whitespace(&tokens.to_string());
+        let negated = extract_bool_from_tokens(&token_str, "negated").unwrap_or(false);
+
         if token_str.contains("field =") {
             // Field-based grouping
             let field = extract_string_from_tokens(&token_str, "field").unwrap_or_else(|| "id".to_string());
             let group_on = extract_number_from_tokens(&token_str, "group_on").unwrap_or(1);
             let add_to_group = extract_number_from_tokens(&token_str, "add_to_group").unwrap_or(2);
-            
-            Some(SpatialAttribute::GroupField { field, group_on, add_to_group })
+
+            Some(SpatialAttribute::GroupField { field, group_on, add_to_group, negated })
         } else {
             // Selector-based grouping
             let selector = extract_string_from_tokens(&token_str, "selector").unwrap_or_else(|| "".to_string());
             let name = extract_string_from_tokens(&token_str, "name").unwrap_or_else(|| "default".to_string());
-            
-            Some(SpatialAttribute::GroupSelector { selector, name })
+
+            Some(SpatialAttribute::GroupSelector { selector, name, negated })
         }
     } else {
         None
@@ -465,12 +467,13 @@ fn parse_group_args(attr: &Attribute) -> Option<SpatialAttribute> {
 fn parse_align_args(attr: &Attribute) -> Option<SpatialAttribute> {
     if let Ok(meta) = attr.meta.require_list() {
         let tokens = &meta.tokens;
-        let token_str = tokens.to_string();
-        
+        let token_str = normalize_whitespace(&tokens.to_string());
+
         let selector = extract_string_from_tokens(&token_str, "selector").unwrap_or_else(|| "".to_string());
         let direction = extract_string_from_tokens(&token_str, "direction").unwrap_or_else(|| "horizontal".to_string());
-        
-        Some(SpatialAttribute::Align { selector, direction })
+        let negated = extract_bool_from_tokens(&token_str, "negated").unwrap_or(false);
+
+        Some(SpatialAttribute::Align { selector, direction, negated })
     } else {
         None
     }
@@ -479,12 +482,13 @@ fn parse_align_args(attr: &Attribute) -> Option<SpatialAttribute> {
 fn parse_cyclic_args(attr: &Attribute) -> Option<SpatialAttribute> {
     if let Ok(meta) = attr.meta.require_list() {
         let tokens = &meta.tokens;
-        let token_str = tokens.to_string();
-        
+        let token_str = normalize_whitespace(&tokens.to_string());
+
         let selector = extract_string_from_tokens(&token_str, "selector").unwrap_or_else(|| "".to_string());
         let direction = extract_string_from_tokens(&token_str, "direction").unwrap_or_else(|| "up".to_string());
-        
-        Some(SpatialAttribute::Cyclic { selector, direction })
+        let negated = extract_bool_from_tokens(&token_str, "negated").unwrap_or(false);
+
+        Some(SpatialAttribute::Cyclic { selector, direction, negated })
     } else {
         None
     }
@@ -537,12 +541,7 @@ fn parse_icon_args(attr: &Attribute) -> Option<SpatialAttribute> {
 fn parse_edge_style_args(attr: &Attribute) -> Option<SpatialAttribute> {
     if let Ok(meta) = attr.meta.require_list() {
         let tokens = &meta.tokens;
-        // Normalize line breaks/tabs to spaces so the extractors below
-        // (which match `key = ` / `key = "`) work even when proc-macro2
-        // wraps long attribute lists across multiple lines.
-        let token_str = tokens
-            .to_string()
-            .replace(['\n', '\r', '\t'], " ");
+        let token_str = normalize_whitespace(&tokens.to_string());
 
         let field = extract_string_from_tokens(&token_str, "field")
             .unwrap_or_else(|| "relation".to_string());
@@ -637,6 +636,13 @@ fn parse_tag_args(attr: &Attribute) -> Option<SpatialAttribute> {
     } else {
         None
     }
+}
+
+/// Replace newlines/tabs with spaces so the `extract_*_from_tokens` helpers
+/// (which match `key = ` / `key = "`) work even when proc-macro2 wraps long
+/// attribute lists across multiple lines.
+fn normalize_whitespace(tokens: &str) -> String {
+    tokens.replace(['\n', '\r', '\t'], " ")
 }
 
 fn extract_string_from_tokens(tokens: &str, key: &str) -> Option<String> {

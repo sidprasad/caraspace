@@ -107,10 +107,12 @@ These map onto the Rust builder and YAML serialization layer in `spytial_annotat
 |----------|---------|
 | `#[attribute(field = "...")]` | Show a field as an attribute |
 | `#[flag(name = "...")]` | Set a global display flag |
-| `#[orientation(selector = "...", directions = [...])]` | Relative layout constraint |
-| `#[align(selector = "...", direction = "horizontal" \| "vertical")]` | Force alignment |
-| `#[cyclic(selector = "...", direction = "...")]` | Cyclic ordering |
-| `#[group(...)]` | Group by selector or field |
+| `#[orientation(selector = "...", directions = [...], negated = false)]` | Relative layout constraint (`negated` optional) |
+| `#[align(selector = "...", direction = "horizontal" \| "vertical", negated = false)]` | Force alignment (`negated` optional) |
+| `#[cyclic(selector = "...", direction = "...", negated = false)]` | Cyclic ordering (`negated` optional) |
+| `#[group(..., negated = false)]` | Group by selector or field (`negated` optional) |
+
+`negated = true` on any constraint emits the `hold: never` form spytial-core uses for disjunctive solving — i.e. "this constraint must NOT hold."
 | `#[atom_color(selector = "...", value = "...")]` | Color nodes |
 | `#[size(selector = "...", height = 40, width = 60)]` | Set node size |
 | `#[icon(selector = "...", path = "...", show_labels = true)]` | Set node icon |
