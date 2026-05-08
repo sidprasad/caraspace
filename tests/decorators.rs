@@ -1,5 +1,6 @@
 use caraspace::spytial_annotations::{
-    to_yaml, Constraint, Directive, HasSpytialDecorators,
+    to_yaml, Constraint, Directive, GroupParams, HasSpytialDecorators,
+    SpytialDecorators as SpytialDecoratorsType, SpytialDecoratorsBuilder,
 };
 use caraspace::SpytialDecorators;
 use serde::Serialize;
@@ -174,4 +175,142 @@ fn tag_directive_multiple() {
     assert_eq!(tags.len(), 2);
     assert!(tags.iter().any(|t| t.to_tag == "Person" && t.name == "age"));
     assert!(tags.iter().any(|t| t.to_tag == "Car" && t.name == "owner"));
+}
+
+#[derive(Serialize, SpytialDecorators)]
+#[orientation(selector = "Person", directions = ["above"], negated = true)]
+#[align(selector = "Person", direction = "horizontal", negated = true)]
+#[cyclic(selector = "next", direction = "clockwise", negated = true)]
+#[group(selector = "Foo", name = "fooGroup", negated = true)]
+#[group(field = "rel", group_on = 0, add_to_group = 1, negated = true)]
+struct AllNegated {
+    id: u32,
+}
+
+#[test]
+fn negated_constraints_emit_hold_never() {
+    let decorators = AllNegated::decorators();
+
+    let orientation = decorators
+        .constraints
+        .iter()
+        .find_map(|c| match c {
+            Constraint::Orientation(o) => Some(&o.orientation),
+            _ => None,
+        })
+        .expect("orientation");
+    assert!(orientation.negated);
+
+    let align = decorators
+        .constraints
+        .iter()
+        .find_map(|c| match c {
+            Constraint::Align(a) => Some(&a.align),
+            _ => None,
+        })
+        .expect("align");
+    assert!(align.negated);
+
+    let cyclic = decorators
+        .constraints
+        .iter()
+        .find_map(|c| match c {
+            Constraint::Cyclic(c) => Some(&c.cyclic),
+            _ => None,
+        })
+        .expect("cyclic");
+    assert!(cyclic.negated);
+
+    let mut group_selector_negated = false;
+    let mut group_field_negated = false;
+    for c in &decorators.constraints {
+        if let Constraint::Group(g) = c {
+            match &g.group {
+                GroupParams::SelectorBased { negated, .. } if *negated => {
+                    group_selector_negated = true;
+                }
+                GroupParams::FieldBased { negated, .. } if *negated => {
+                    group_field_negated = true;
+                }
+                _ => {}
+            }
+        }
+    }
+    assert!(group_selector_negated, "expected negated selector-based group");
+    assert!(group_field_negated, "expected negated field-based group");
+
+    // Wire-format: negation surfaces as `hold: never` inside each inner
+    // constraint object (matching spytial-core's parser).
+    let yaml = to_yaml(&decorators).unwrap();
+    let hold_never_count = yaml.matches("hold: never").count();
+    assert_eq!(
+        hold_never_count, 5,
+        "expected 5 `hold: never` entries (one per negated constraint), got {hold_never_count}\n{yaml}"
+    );
+}
+
+#[derive(Serialize, SpytialDecorators)]
+#[orientation(selector = "Person", directions = ["above"])]
+#[align(selector = "Person", direction = "horizontal")]
+#[cyclic(selector = "next", direction = "clockwise")]
+struct AllPositive {
+    id: u32,
+}
+
+#[test]
+fn positive_constraints_omit_hold_field() {
+    let decorators = AllPositive::decorators();
+
+    let yaml = to_yaml(&decorators).unwrap();
+    assert!(
+        !yaml.contains("hold:"),
+        "positive constraints should not emit `hold` at all, got:\n{yaml}"
+    );
+
+    // Sanity-check: negated flags are all false.
+    for c in &decorators.constraints {
+        match c {
+            Constraint::Orientation(o) => assert!(!o.orientation.negated),
+            Constraint::Align(a) => assert!(!a.align.negated),
+            Constraint::Cyclic(c) => assert!(!c.cyclic.negated),
+            Constraint::Group(_) => {}
+        }
+    }
+}
+
+#[test]
+fn negated_constraint_round_trips_through_yaml() {
+    // Hand-build a single negated orientation, serialize, then deserialize
+    // and verify negated survives. Matches spytial-core's `hold: never`
+    // wire form.
+    let original = SpytialDecoratorsBuilder::new()
+        .orientation("r", vec!["above"], true)
+        .build();
+
+    let yaml = to_yaml(&original).unwrap();
+    assert!(yaml.contains("hold: never"), "expected hold: never in:\n{yaml}");
+
+    let parsed: SpytialDecoratorsType = serde_yml::from_str(&yaml).unwrap();
+    assert_eq!(parsed, original);
+
+    // And a spytial-core-shaped YAML with the inner `hold: never` should
+    // round-trip into a `negated == true` constraint.
+    let core_yaml = r#"
+constraints:
+  - orientation:
+      selector: r
+      directions:
+        - above
+      hold: never
+directives: []
+"#;
+    let from_core: SpytialDecoratorsType = serde_yml::from_str(core_yaml).unwrap();
+    assert_eq!(from_core.constraints.len(), 1);
+    if let Constraint::Orientation(o) = &from_core.constraints[0] {
+        assert!(o.orientation.negated);
+        assert_eq!(o.orientation.selector, "r");
+        assert_eq!(o.orientation.directions, vec!["above".to_string()]);
+    } else {
+        panic!("expected orientation, got {:?}", from_core.constraints[0]);
+    }
 }

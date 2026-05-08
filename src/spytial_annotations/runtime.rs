@@ -3,6 +3,33 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Mutex;
 
+/// Wire-format helpers for the `negated` flag on constraints.
+///
+/// `spytial-core` represents constraint negation as `hold: never` inside the
+/// inner constraint object (a positive constraint omits the `hold` key
+/// entirely). On the Rust side we keep an ergonomic `negated: bool`, and
+/// these helpers translate to/from the `hold` string at serialization
+/// boundaries.
+mod hold_serde {
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S: Serializer>(negated: &bool, ser: S) -> Result<S::Ok, S::Error> {
+        // Caller is `skip_serializing_if = "is_not_negated"` — this only runs
+        // when `*negated == true`, so always emit "never".
+        debug_assert!(*negated);
+        ser.serialize_str("never")
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<bool, D::Error> {
+        let s: Option<String> = Option::deserialize(d)?;
+        Ok(s.as_deref() == Some("never"))
+    }
+}
+
+fn is_not_negated(negated: &bool) -> bool {
+    !*negated
+}
+
 /// Main structure containing all SpyTial decorators for a type or instance
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SpytialDecorators {
@@ -56,6 +83,14 @@ pub struct OrientationConstraint {
 pub struct OrientationParams {
     pub selector: String,
     pub directions: Vec<String>,
+    #[serde(
+        rename = "hold",
+        default,
+        skip_serializing_if = "is_not_negated",
+        serialize_with = "hold_serde::serialize",
+        deserialize_with = "hold_serde::deserialize"
+    )]
+    pub negated: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -67,6 +102,14 @@ pub struct AlignConstraint {
 pub struct AlignParams {
     pub selector: String,
     pub direction: String,
+    #[serde(
+        rename = "hold",
+        default,
+        skip_serializing_if = "is_not_negated",
+        serialize_with = "hold_serde::serialize",
+        deserialize_with = "hold_serde::deserialize"
+    )]
+    pub negated: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -78,6 +121,14 @@ pub struct CyclicConstraint {
 pub struct CyclicParams {
     pub selector: String,
     pub direction: String,
+    #[serde(
+        rename = "hold",
+        default,
+        skip_serializing_if = "is_not_negated",
+        serialize_with = "hold_serde::serialize",
+        deserialize_with = "hold_serde::deserialize"
+    )]
+    pub negated: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -96,10 +147,26 @@ pub enum GroupParams {
         add_to_group: u32,
         #[serde(skip_serializing_if = "Option::is_none")]
         selector: Option<String>,
+        #[serde(
+            rename = "hold",
+            default,
+            skip_serializing_if = "is_not_negated",
+            serialize_with = "hold_serde::serialize",
+            deserialize_with = "hold_serde::deserialize"
+        )]
+        negated: bool,
     },
     SelectorBased {
         selector: String,
         name: String,
+        #[serde(
+            rename = "hold",
+            default,
+            skip_serializing_if = "is_not_negated",
+            serialize_with = "hold_serde::serialize",
+            deserialize_with = "hold_serde::deserialize"
+        )]
+        negated: bool,
     },
 }
 
@@ -349,32 +416,35 @@ impl SpytialDecoratorsBuilder {
         }
     }
 
-    pub fn orientation(mut self, selector: &str, directions: Vec<&str>) -> Self {
+    pub fn orientation(mut self, selector: &str, directions: Vec<&str>, negated: bool) -> Self {
         self.constraints
             .push(Constraint::Orientation(OrientationConstraint {
                 orientation: OrientationParams {
                     selector: selector.to_string(),
                     directions: directions.iter().map(|s| s.to_string()).collect(),
+                    negated,
                 },
             }));
         self
     }
 
-    pub fn align(mut self, selector: &str, direction: &str) -> Self {
+    pub fn align(mut self, selector: &str, direction: &str, negated: bool) -> Self {
         self.constraints.push(Constraint::Align(AlignConstraint {
             align: AlignParams {
                 selector: selector.to_string(),
                 direction: direction.to_string(),
+                negated,
             },
         }));
         self
     }
 
-    pub fn cyclic(mut self, selector: &str, direction: &str) -> Self {
+    pub fn cyclic(mut self, selector: &str, direction: &str, negated: bool) -> Self {
         self.constraints.push(Constraint::Cyclic(CyclicConstraint {
             cyclic: CyclicParams {
                 selector: selector.to_string(),
                 direction: direction.to_string(),
+                negated,
             },
         }));
         self
@@ -386,6 +456,7 @@ impl SpytialDecoratorsBuilder {
         group_on: u32,
         add_to_group: u32,
         selector: Option<&str>,
+        negated: bool,
     ) -> Self {
         self.constraints.push(Constraint::Group(GroupConstraint {
             group: GroupParams::FieldBased {
@@ -393,16 +464,18 @@ impl SpytialDecoratorsBuilder {
                 group_on,
                 add_to_group,
                 selector: selector.map(|s| s.to_string()),
+                negated,
             },
         }));
         self
     }
 
-    pub fn group_selector_based(mut self, selector: &str, name: &str) -> Self {
+    pub fn group_selector_based(mut self, selector: &str, name: &str, negated: bool) -> Self {
         self.constraints.push(Constraint::Group(GroupConstraint {
             group: GroupParams::SelectorBased {
                 selector: selector.to_string(),
                 name: name.to_string(),
+                negated,
             },
         }));
         self
@@ -585,12 +658,14 @@ mod tests {
                     orientation: OrientationParams {
                         selector: "value".to_string(),
                         directions: vec!["above".to_string()],
+                        negated: false,
                     },
                 }),
                 Constraint::Align(AlignConstraint {
                     align: AlignParams {
                         selector: "siblings".to_string(),
                         direction: "horizontal".to_string(),
+                        negated: false,
                     },
                 }),
             ],
