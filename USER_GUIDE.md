@@ -17,7 +17,7 @@ Add the crate to your project:
 
 ```toml
 [dependencies]
-caraspace = { path = "/path/to/caraspace" }
+caraspace = "0.0"
 serde = { version = "1", features = ["derive"] }
 ```
 

@@ -608,7 +608,7 @@ impl<'a> Serializer for &'a mut JsonDataSerializer {
 /// These implement the `idx(container, position, element)` relationalization pattern
 /// for collections where position has stable, meaningful semantics.
 
-/// ## Vec<T>, arrays, slices - O(1) indexable collections
+/// ## `Vec<T>`, arrays, slices - O(1) indexable collections
 ///
 /// **Serialization Pattern**: Each element creates an `idx` relation
 /// **Position Encoding**: String representation of 0-based index
