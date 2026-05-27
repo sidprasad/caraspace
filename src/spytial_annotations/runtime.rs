@@ -336,6 +336,12 @@ pub trait HasSpytialDecorators {
     fn decorators() -> SpytialDecorators;
 }
 
+impl<T: HasSpytialDecorators + ?Sized> HasSpytialDecorators for &T {
+    fn decorators() -> SpytialDecorators {
+        T::decorators()
+    }
+}
+
 // ── Probe mechanism for safe compile-time decorator collection ──────────
 //
 // Problem: the derive macro needs to collect decorators from field types,

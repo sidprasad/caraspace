@@ -1,14 +1,14 @@
-use caraspace::{diagram, SpytialDecorators};
+use caraspace::{dbg, SpytialDecorators};
 use serde::Serialize;
 
-#[derive(Serialize, SpytialDecorators)]
+#[derive(Debug, Serialize, SpytialDecorators)]
 struct RBTree {
     root: Option<Box<RBNode>>,
 }
 
 /// RBNode in the red-black tree with decorators that will be automatically
 /// included when processing any type that contains RBNode fields.
-#[derive(Serialize, SpytialDecorators)]
+#[derive(Debug, Serialize, SpytialDecorators)]
 #[attribute(field = "key")]
 #[attribute(field = "color")]
 #[orientation(selector="{x, y : RBNode | x->y in left}", directions=["left", "below"])]
@@ -203,5 +203,5 @@ fn main() {
 
     assert!(tree.is_valid(), "red-black invariants should hold");
 
-    diagram(&tree);
+    dbg!(tree);
 }
