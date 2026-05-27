@@ -82,6 +82,84 @@ pub fn diagram_with_spec<T: Serialize>(value: &T, spec: &str) {
     diagram_impl(value, spec);
 }
 
+/// Strict superset of [`std::dbg!`]: prints the `Debug` representation to
+/// stderr *and* opens an interactive diagram of the value in your browser.
+///
+/// The calling convention matches `std::dbg!` exactly, so swapping
+/// `std::dbg!` for `caraspace::dbg!` (or `use caraspace::dbg;`) is purely
+/// additive — you keep the stderr trail you already rely on and get the
+/// diagram on top.
+///
+/// - `dbg!()` — prints the source location, opens nothing.
+/// - `dbg!(expr)` — evaluates `expr`, prints `[file:line:col] expr = …` to
+///   stderr (using `{:#?}`), opens a diagram in the browser, and returns
+///   the value through.
+/// - `dbg!(a, b, …)` — returns a tuple `(a, b, …)`. Each argument is
+///   diagrammed (opens one tab per argument).
+///
+/// The expression's type must derive [`std::fmt::Debug`],
+/// [`serde::Serialize`], and [`SpytialDecorators`]. Both owned
+/// (`dbg!(x)`) and borrowed (`dbg!(&x)`) forms work.
+///
+/// # Examples
+///
+/// ```no_run
+/// use caraspace::{dbg, SpytialDecorators};
+/// use serde::Serialize;
+///
+/// #[derive(Debug, Serialize, SpytialDecorators)]
+/// #[attribute(field = "key")]
+/// struct Node {
+///     key: u32,
+///     left: Option<Box<Node>>,
+///     right: Option<Box<Node>>,
+/// }
+///
+/// let tree = Node {
+///     key: 5,
+///     left: Some(Box::new(Node { key: 3, left: None, right: None })),
+///     right: Some(Box::new(Node { key: 7, left: None, right: None })),
+/// };
+///
+/// // Drop in for `std::dbg!`: prints Debug + opens a diagram,
+/// // returns `tree` through for further use.
+/// let tree = dbg!(tree);
+/// ```
+///
+/// To suppress browser launch (CI, tests, headless runs), set
+/// `SPYTIAL_NO_OPEN=1`. Stderr output is unaffected, so `cargo test`
+/// captures still behave exactly like they would for `std::dbg!`.
+#[macro_export]
+macro_rules! dbg {
+    () => {
+        ::std::eprintln!(
+            "[{}:{}:{}]",
+            ::std::file!(),
+            ::std::line!(),
+            ::std::column!(),
+        )
+    };
+    ($val:expr $(,)?) => {
+        match $val {
+            tmp => {
+                ::std::eprintln!(
+                    "[{}:{}:{}] {} = {:#?}",
+                    ::std::file!(),
+                    ::std::line!(),
+                    ::std::column!(),
+                    ::std::stringify!($val),
+                    &tmp,
+                );
+                $crate::diagram(&tmp);
+                tmp
+            }
+        }
+    };
+    ($($val:expr),+ $(,)?) => {
+        ($($crate::dbg!($val)),+,)
+    };
+}
+
 /// Internal implementation shared by diagram functions.
 fn diagram_impl<T: Serialize>(value: &T, spec: &str) {
     // Export the struct to our custom JSON format with type information
