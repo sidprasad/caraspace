@@ -1,23 +1,31 @@
 # CaraSpace
 
-**Spytial for Rust — diagrams instead of `{:#?}` output.**
+**`dbg!` for shapes, not just text.**
 
-You already write `dbg!(tree)` and squint at 200 lines of nested debug
-output. Swap one line and you also get a real diagram in your browser.
-`caraspace::dbg!` is a strict superset of `std::dbg!` — same stderr
-output, same return semantics, plus the picture.
+`caraspace::dbg!` is a drop-in replacement for `std::dbg!` that opens an
+interactive diagram of the value alongside the usual stderr trail. Same
+calling convention, same `{:#?}` output, plus the picture.
 
 ```rust
-use caraspace::dbg; // shadows std::dbg!
+use caraspace::dbg;
 
 let tree = build_red_black_tree();
-let tree = dbg!(tree); // stderr trail + browser tab; `tree` flows through
+let tree = dbg!(tree);
 ```
 
-The structure was already in your types. Rust's `derive` macros, the
-borrow checker, even your `Debug` impl all know what nodes and edges
-live inside your value — caraspace refines that into a faithful picture.
-For the longer version of the argument, see
+stderr:
+
+```text
+[src/main.rs:42:17] tree = RBTree {
+    root: Some(RBNode { key: 38, color: Black, left: Some(RBNode { ... }), ... }),
+}
+```
+
+Browser: an interactive diagram of the same tree.
+
+The structure was already in your types — `#[derive(Debug)]` is proof that
+Rust knows how to walk your value. Caraspace refines that into a faithful
+picture instead of nested text. For the longer argument, see
 [Spytial on Brown PLT's blog](https://blog.brownplt.org/2026/05/22/spytial.html).
 
 ## Install
@@ -28,7 +36,30 @@ caraspace = "0.1"
 serde = { version = "1", features = ["derive"] }
 ```
 
-## 30-second example
+## The swap
+
+```diff
+- std::dbg!(tree)
++ caraspace::dbg!(tree)
+```
+
+Or shadow it for the whole module:
+
+```rust
+use caraspace::dbg;
+```
+
+The calling convention matches `std::dbg!` exactly:
+
+| Form         | Behavior                                                          |
+|--------------|-------------------------------------------------------------------|
+| `dbg!()`     | Prints location to stderr (same as `std::dbg!()`)                 |
+| `dbg!(x)`    | Prints `{:#?}` + opens diagram, returns `x` through               |
+| `dbg!(&x)`   | Same, borrows                                                     |
+| `dbg!(a, b)` | Returns `(a, b)`; one diagram tab per argument                    |
+
+Type requirements: `Debug` (already required by `std::dbg!`), plus `Serialize`
+and `SpytialDecorators`:
 
 ```rust
 use caraspace::{dbg, SpytialDecorators};
@@ -41,70 +72,21 @@ struct Node {
     left: Option<Box<Node>>,
     right: Option<Box<Node>>,
 }
-
-fn main() {
-    let tree = Node {
-        key: 5,
-        left: Some(Box::new(Node { key: 3, left: None, right: None })),
-        right: Some(Box::new(Node { key: 7, left: None, right: None })),
-    };
-    dbg!(tree);
-}
 ```
 
-Derive `Debug`, `Serialize`, `SpytialDecorators`, drop in `dbg!`, run.
-That's the whole story for the simple case.
+That's the whole setup. `SPYTIAL_NO_OPEN=1` suppresses browser launch (CI,
+tests, headless runs) — stderr is unaffected, so `cargo test` capture behaves
+exactly like it does for `std::dbg!`.
 
-## Drop-in for `std::dbg!`
+## When you want more than the default layout
 
-`caraspace::dbg!` is a strict superset of `std::dbg!` — same calling
-convention, same return semantics, plus a diagram. The migration is
-literally one line:
-
-```diff
-- std::dbg!(tree)
-+ caraspace::dbg!(tree)
-```
-
-or, with a `use`:
+Caraspace decorators (`#[attribute]`, `#[align]`, `#[orientation]`,
+`#[atom_color]`, …) tell the diagrammer what to emphasise — relative
+position, color, alignment, grouping. They're declarative constraints, not
+imperative rendering code:
 
 ```rust
-use caraspace::dbg; // shadows std::dbg! for the rest of the module
-```
-
-| Form               | Behavior                                          |
-|--------------------|---------------------------------------------------|
-| `dbg!()`           | Prints location to stderr (same as `std::dbg!()`) |
-| `dbg!(x)`          | Prints `[file:line] x = {:#?}` + opens diagram, returns `x` |
-| `dbg!(&x)`         | Same, borrows                                     |
-| `dbg!(a, b)`       | Returns `(a, b)`, opens one tab per argument      |
-
-Requirements on the value's type: `Debug` (same as `std::dbg!`), plus
-`Serialize` and `SpytialDecorators` for caraspace.
-
-Coexists fine with `std::dbg!` (different namespace). Honor
-`SPYTIAL_NO_OPEN=1` to suppress browser launch in tests, CI, or any
-headless context — stderr behavior is unchanged so `assert!`-style test
-flows still work.
-
-## The two ways in
-
-- **`dbg!(value)`** — printf-style, one-character swap from `std::dbg!`,
-  prints to stderr *and* opens a browser tab. Returns the value through
-  so it composes inside larger expressions.
-- **`diagram(&value)`** — the explicit function form. No stderr output,
-  no source location, doesn't take ownership.
-
-Both pick up decorators attached to the type and its nested types.
-
-## Telling the diagrammer what you want
-
-Caraspace's decorators (`#[attribute]`, `#[align]`, `#[orientation]`,
-`#[atom_color]`, …) specify layout *declaratively* on the type, not the
-value. The diagrammer treats them as constraints:
-
-```rust
-#[derive(Serialize, SpytialDecorators)]
+#[derive(Debug, Serialize, SpytialDecorators)]
 #[attribute(field = "key")]
 #[attribute(field = "color")]
 #[orientation(selector = "{x, y : RBNode | x->y in left}",  directions = ["left",  "below"])]
@@ -114,52 +96,52 @@ value. The diagrammer treats them as constraints:
 struct RBNode { /* ... */ }
 ```
 
-The full red-black-tree demo is in [`examples/rbt.rs`](./examples/rbt.rs):
+Decorators are collected from nested types automatically — decorating
+`Person` once is enough for those decorators to apply wherever `Person`
+appears inside another decorated type. `Vec<T>`, `Option<T>`, `Box<T>`, and
+their nested combinations all unwrap during the compile-time walk.
 
-```bash
-cargo run --example rbt
+Full attribute reference: [USER_GUIDE.md](./USER_GUIDE.md).
+
+## Without `dbg!`
+
+For library code, or anywhere you don't want stderr noise, call `diagram`
+directly:
+
+```rust
+use caraspace::diagram;
+diagram(&tree); // no stderr line, no source location, doesn't move
 ```
-
-See [USER_GUIDE.md](./USER_GUIDE.md) for the complete decorator reference.
-
-## How the derive walks your types
-
-`#[derive(SpytialDecorators)]` analyses the type tree at compile time and
-includes decorators from nested types automatically:
-
-- `Vec<T>`, `Option<T>`, `Box<T>` → unwraps to `T`
-- Nested combinations like `Vec<Option<Box<T>>>` work the same way
-- Direct types are analysed in place
-
-Decorating `Person` once is enough for those decorators to show up
-wherever `Person` appears inside another decorated type. No manual
-registration.
 
 ## Examples
 
-- `cargo run --example dbg_basic` — the smallest `dbg!` swap, runnable
-- `cargo run --example demo` — decorator collection on nested structs
-- `cargo run --example rbt` — insertion-balanced red-black tree with
-  color and layout decorators
+| Example       | What it shows                                          |
+|---------------|--------------------------------------------------------|
+| `dbg_basic`   | The smallest `dbg!` swap                               |
+| `demo`        | Decorator collection across nested structs             |
+| `rbt`         | Insertion-balanced red-black tree with layout + colors |
+
+```bash
+cargo run --example dbg_basic
+cargo run --example rbt
+```
 
 ## Headless / Docker
 
 ```bash
 docker build -t caraspace .
 docker run --rm -p 8080:8080 caraspace          # default: rbt
-docker run --rm -p 8080:8080 caraspace demo     # any other example
+docker run --rm -p 8080:8080 caraspace demo
 ```
 
-Open `http://localhost:8080/rust_viz_data.html`. Browser launch is
-disabled inside the container (`SPYTIAL_NO_OPEN=1`).
+Open `http://localhost:8080/rust_viz_data.html`. Browser launch is disabled
+inside the container (`SPYTIAL_NO_OPEN=1`).
 
-## Documentation
+## Docs
 
-- [USER_GUIDE.md](./USER_GUIDE.md) — installation, decorator reference,
-  common workflows
+- [USER_GUIDE.md](./USER_GUIDE.md) — full decorator reference, common workflows
 - [doc.md](./doc.md) — compile-time analysis internals
-- [Spytial blog post](https://blog.brownplt.org/2026/05/22/spytial.html)
-  — the design philosophy
+- [Spytial blog post](https://blog.brownplt.org/2026/05/22/spytial.html) — design philosophy
 
 ## Development
 
