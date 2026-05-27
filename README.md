@@ -129,7 +129,7 @@ The full progressive demo lives in [`examples/rbt.rs`](./examples/rbt.rs).
 
 ```toml
 [dependencies]
-caraspace = "0.1"
+caraspace = "0.0"
 serde = { version = "1", features = ["derive"] }
 ```
 

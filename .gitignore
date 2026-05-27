@@ -20,4 +20,4 @@ test_output.html
 .DS_Store
 Thumbs.db
 
-macros/target/debug
+macros/target/

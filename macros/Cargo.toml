@@ -1,7 +1,11 @@
 [package]
 name = "caraspace_export_macros"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2021"
+rust-version = "1.80"
+description = "Procedural macros for the caraspace crate (SpytialDecorators derive)."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/sidprasad/caraspace"
 
 [lib]
 proc-macro = true
