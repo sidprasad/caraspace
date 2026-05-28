@@ -182,6 +182,7 @@ fn tag_directive_multiple() {
 #[align(selector = "Person", direction = "horizontal", negated = true)]
 #[cyclic(selector = "next", direction = "clockwise", negated = true)]
 #[group(selector = "Foo", name = "fooGroup", negated = true)]
+#[allow(clippy::duplicated_attributes)]
 #[group(field = "rel", group_on = 0, add_to_group = 1, negated = true)]
 struct AllNegated {
     id: u32,
@@ -236,7 +237,10 @@ fn negated_constraints_emit_hold_never() {
             }
         }
     }
-    assert!(group_selector_negated, "expected negated selector-based group");
+    assert!(
+        group_selector_negated,
+        "expected negated selector-based group"
+    );
     assert!(group_field_negated, "expected negated field-based group");
 
     // Wire-format: negation surfaces as `hold: never` inside each inner
@@ -288,9 +292,12 @@ fn negated_constraint_round_trips_through_yaml() {
         .build();
 
     let yaml = to_yaml(&original).unwrap();
-    assert!(yaml.contains("hold: never"), "expected hold: never in:\n{yaml}");
+    assert!(
+        yaml.contains("hold: never"),
+        "expected hold: never in:\n{yaml}"
+    );
 
-    let parsed: SpytialDecoratorsType = serde_yml::from_str(&yaml).unwrap();
+    let parsed: SpytialDecoratorsType = serde_yaml_ng::from_str(&yaml).unwrap();
     assert_eq!(parsed, original);
 
     // And a spytial-core-shaped YAML with the inner `hold: never` should
@@ -304,7 +311,7 @@ constraints:
       hold: never
 directives: []
 "#;
-    let from_core: SpytialDecoratorsType = serde_yml::from_str(core_yaml).unwrap();
+    let from_core: SpytialDecoratorsType = serde_yaml_ng::from_str(core_yaml).unwrap();
     assert_eq!(from_core.constraints.len(), 1);
     if let Constraint::Orientation(o) = &from_core.constraints[0] {
         assert!(o.orientation.negated);

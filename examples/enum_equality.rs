@@ -20,6 +20,7 @@ fn main() {
 
     // More complex: enums with data
     #[derive(Debug, PartialEq)]
+    #[allow(dead_code)]
     enum Value {
         Number(u32),
         Text(String),

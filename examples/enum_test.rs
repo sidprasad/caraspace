@@ -2,6 +2,7 @@ use caraspace::export_json_instance;
 use serde::Serialize;
 
 #[derive(Serialize)]
+#[allow(dead_code)]
 enum Color {
     Red,
     Black,

@@ -3,28 +3,13 @@
 //! Compile-time decorator system for SpyTial spatial layout and visualization.
 //! Provides type-level decorator collection via derive macros and YAML serialization.
 
+/// Decorator data types, derive-macro runtime, and YAML serialization plumbing.
 pub mod runtime;
-#[cfg(test)]
-mod validation;
 
 // Re-export the main types and functions
 pub use runtime::{
-    get_type_decorators,
-    register_type_decorators,
-    to_yaml,
-    AlignConstraint,
-    AlignParams,
-    Constraint,
-    CyclicConstraint,
-    CyclicParams,
-    DecoProbe,
-    DefaultDecorators,
-    Directive,
-    GroupConstraint,
-    GroupParams,
-    HasSpytialDecorators,
-    OrientationConstraint,
-    OrientationParams,
-    SpytialDecorators,
-    SpytialDecoratorsBuilder,
+    get_type_decorators, register_type_decorators, to_yaml, AlignConstraint, AlignParams,
+    Constraint, CyclicConstraint, CyclicParams, DecoProbe, DefaultDecorators, Directive,
+    GroupConstraint, GroupParams, HasSpytialDecorators, OrientationConstraint, OrientationParams,
+    SpytialDecorators, SpytialDecoratorsBuilder,
 };

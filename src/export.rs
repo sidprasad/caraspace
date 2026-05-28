@@ -65,34 +65,79 @@ use serde::ser::{
 use std::collections::HashMap;
 use std::fmt;
 
-/// Export a Rust data structure to our JSON instance format using custom Serde serialization
+/// Export a Rust data structure to our JSON instance format using custom Serde serialization.
+///
+/// Returns an empty [`JsonDataInstance`] if the value's `Serialize` impl fails. Use
+/// [`try_export_json_instance`] when you need to distinguish success from failure.
 pub fn export_json_instance<T: Serialize>(value: &T) -> JsonDataInstance {
-    let mut serializer = JsonDataSerializer::new();
-    value.serialize(&mut serializer).unwrap();
-    JsonDataInstance {
-        atoms: serializer.atoms,
-        relations: serializer.relations.into_values().collect(),
-    }
+    try_export_json_instance(value).unwrap_or_else(|err| {
+        eprintln!(
+            "caraspace: serialization failed, returning empty instance: {}",
+            err.message()
+        );
+        JsonDataInstance {
+            atoms: Vec::new(),
+            relations: Vec::new(),
+        }
+    })
 }
 
-/// Export a Rust data structure and collect SpyTial decorators from all encountered types
-/// Excludes the root type from collection to avoid double-counting
+/// Fallible variant of [`export_json_instance`]: surfaces `Serialize` errors instead of
+/// degrading to an empty instance.
+pub fn try_export_json_instance<T: Serialize>(
+    value: &T,
+) -> Result<JsonDataInstance, SerializationError> {
+    let mut serializer = JsonDataSerializer::new();
+    value.serialize(&mut serializer)?;
+    Ok(JsonDataInstance {
+        atoms: serializer.atoms,
+        relations: serializer.relations.into_values().collect(),
+    })
+}
+
+/// Export a Rust data structure and collect SpyTial decorators from all encountered types.
+/// Excludes the root type from collection to avoid double-counting.
+///
+/// Returns an empty instance and empty decorators on serialization failure.
 pub fn export_json_instance_with_decorators<T: Serialize>(
     value: &T,
     root_type_name: &str,
 ) -> (JsonDataInstance, SpytialDecorators) {
+    try_export_json_instance_with_decorators(value, root_type_name).unwrap_or_else(|err| {
+        eprintln!(
+            "caraspace: serialization failed, returning empty instance: {}",
+            err.message()
+        );
+        (
+            JsonDataInstance {
+                atoms: Vec::new(),
+                relations: Vec::new(),
+            },
+            SpytialDecorators::default(),
+        )
+    })
+}
+
+/// Fallible variant of [`export_json_instance_with_decorators`].
+pub fn try_export_json_instance_with_decorators<T: Serialize>(
+    value: &T,
+    root_type_name: &str,
+) -> Result<(JsonDataInstance, SpytialDecorators), SerializationError> {
     let mut serializer = JsonDataSerializer::new();
     serializer.exclude_type = Some(root_type_name.to_string());
-    value.serialize(&mut serializer).unwrap();
+    value.serialize(&mut serializer)?;
     let instance = JsonDataInstance {
         atoms: serializer.atoms,
         relations: serializer.relations.into_values().collect(),
     };
-    (instance, serializer.collected_decorators)
+    Ok((instance, serializer.collected_decorators))
 }
 
-/// Custom Serde serializer that preserves semantic structure for different collection types
-pub struct JsonDataSerializer {
+/// Custom Serde serializer that preserves semantic structure for different collection types.
+///
+/// This type is an implementation detail of [`export_json_instance`] and
+/// [`try_export_json_instance`] and is not part of the public API.
+pub(crate) struct JsonDataSerializer {
     counter: usize,
     atoms: Vec<IAtom>,
     relations: HashMap<String, IRelation>,
@@ -163,67 +208,57 @@ impl JsonDataSerializer {
         rel.tuples.push(tuple);
     }
 
-    /// Collect decorators for a struct type if it hasn't been visited yet
-    /// This method now attempts automatic registration for types that might have decorators
+    /// Merge decorators for `type_name` into the collected set, if it has any
+    /// registered and we haven't already visited it this run.
+    ///
+    /// Types register themselves at first call to `T::decorators()`, which the
+    /// derive macro emits as part of the compile-time decorator walk. So by the
+    /// time a value's `Serialize` impl visits a struct, the registry should
+    /// already contain that struct's entry (when one exists).
     fn collect_decorators_for_type(&mut self, type_name: &str) {
-        // Skip if this type should be excluded
         if let Some(ref exclude) = self.exclude_type {
             if type_name == exclude {
                 return;
             }
         }
 
-        // Only collect decorators once per type to avoid duplicates
-        if self.visited_types.contains(type_name) {
+        if !self.visited_types.insert(type_name.to_string()) {
             return;
         }
-        self.visited_types.insert(type_name.to_string());
 
-        // First, try to get already-registered decorators
         if let Some(type_decorators) = crate::spytial_annotations::get_type_decorators(type_name) {
-            // Merge the decorators into our collected set
             self.collected_decorators
                 .constraints
                 .extend(type_decorators.constraints);
             self.collected_decorators
                 .directives
                 .extend(type_decorators.directives);
-            return;
         }
-
-        // If not found, try to trigger registration by calling known decorated type methods
-        // This is a heuristic approach: we try to trigger registration for common patterns
-        if self.try_trigger_registration(type_name) {
-            // After triggering, try to get decorators again
-            if let Some(type_decorators) =
-                crate::spytial_annotations::get_type_decorators(type_name)
-            {
-                self.collected_decorators
-                    .constraints
-                    .extend(type_decorators.constraints);
-                self.collected_decorators
-                    .directives
-                    .extend(type_decorators.directives);
-            }
-        }
-    }
-
-    /// Attempt to trigger registration for a type name by trying common patterns
-    /// This is a heuristic approach that works for types that are already linked
-    fn try_trigger_registration(&self, _type_name: &str) -> bool {
-        // In a real implementation, this could use reflection or other mechanisms
-        // For now, we'll rely on the fact that calling decorators() on any decorated type
-        // should register that type. But since we can't call trait methods by string name,
-        // this is limited.
-
-        // This is where we could add specific registration calls for common types
-        // or use a more sophisticated discovery mechanism
-        false
     }
 }
 
-#[derive(Debug)]
+/// Error returned by [`try_export_json_instance`] and friends when a value's
+/// `Serialize` implementation fails. Wraps the underlying serializer message.
+#[derive(Debug, Clone)]
 pub struct SerializationError(String);
+
+impl SerializationError {
+    /// Borrow the underlying message produced by the failing `Serialize` impl.
+    ///
+    /// Useful when callers want to match on or transform the message
+    /// programmatically rather than just printing the [`Display`](fmt::Display)
+    /// form. The message does not include the `"Serialization error: "` prefix
+    /// that `Display` adds.
+    pub fn message(&self) -> &str {
+        &self.0
+    }
+}
+
+impl AsRef<str> for SerializationError {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
 
 impl fmt::Display for SerializationError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -603,17 +638,17 @@ impl<'a> Serializer for &'a mut JsonDataSerializer {
     }
 }
 
-/// # INDEXABLE SEQUENCE SERIALIZERS
-///
-/// These implement the `idx(container, position, element)` relationalization pattern
-/// for collections where position has stable, meaningful semantics.
+// # INDEXABLE SEQUENCE SERIALIZERS
+//
+// These implement the `idx(container, position, element)` relationalization pattern
+// for collections where position has stable, meaningful semantics.
 
-/// ## `Vec<T>`, arrays, slices - O(1) indexable collections
+/// `Vec<T>`, arrays, slices - O(1) indexable collections.
 ///
 /// **Serialization Pattern**: Each element creates an `idx` relation
 /// **Position Encoding**: String representation of 0-based index
 /// **Type Preservation**: Element types preserved as individual atoms
-pub struct SequenceSerializer<'a> {
+pub(crate) struct SequenceSerializer<'a> {
     serializer: &'a mut JsonDataSerializer,
     seq_id: String,
     index: usize,
@@ -641,7 +676,7 @@ impl<'a> SerializeSeq for SequenceSerializer<'a> {
 }
 
 // Tuples - heterogeneous, fixed positions
-pub struct TupleSerializer<'a> {
+pub(crate) struct TupleSerializer<'a> {
     serializer: &'a mut JsonDataSerializer,
     tuple_id: String,
     index: usize,
@@ -669,7 +704,7 @@ impl<'a> SerializeTuple for TupleSerializer<'a> {
 }
 
 // Tuple structs - named but positional
-pub struct TupleStructSerializer<'a> {
+pub(crate) struct TupleStructSerializer<'a> {
     serializer: &'a mut JsonDataSerializer,
     struct_id: String,
     index: usize,
@@ -696,7 +731,7 @@ impl<'a> SerializeTupleStruct for TupleStructSerializer<'a> {
     }
 }
 
-pub struct TupleVariantSerializer<'a> {
+pub(crate) struct TupleVariantSerializer<'a> {
     serializer: &'a mut JsonDataSerializer,
     variant_id: String,
     variant_type: String,
@@ -723,18 +758,18 @@ impl<'a> SerializeTupleVariant for TupleVariantSerializer<'a> {
     }
 }
 
-/// # KEY-VALUE MAP SERIALIZERS
-///
-/// These implement the `map_entry(map, key, value)` relationalization pattern
-/// for associative containers where key-value relationships are fundamental.
+// # KEY-VALUE MAP SERIALIZERS
+//
+// These implement the `map_entry(map, key, value)` relationalization pattern
+// for associative containers where key-value relationships are fundamental.
 
-/// ## HashMap, BTreeMap - Associative collections  
+/// `HashMap`, `BTreeMap` - Associative collections.
 ///
 /// **Serialization Pattern**: Each key-value pair creates a `map_entry` relation
 /// **Key Handling**: Keys are serialized as full atoms (can be complex types)
-/// **Value Handling**: Values are serialized as full atoms (can be complex types)  
+/// **Value Handling**: Values are serialized as full atoms (can be complex types)
 /// **Ordering**: No positional semantics - pure associative lookup
-pub struct MapSerializer<'a> {
+pub(crate) struct MapSerializer<'a> {
     serializer: &'a mut JsonDataSerializer,
     map_id: String,
     key_id: Option<String>,
@@ -767,18 +802,18 @@ impl<'a> SerializeMap for MapSerializer<'a> {
     }
 }
 
-/// # STRUCT SERIALIZERS
-///
-/// These implement the field-name-as-relation-name pattern for named data structures
-/// where field names carry semantic meaning beyond just data organization.
+// # STRUCT SERIALIZERS
+//
+// These implement the field-name-as-relation-name pattern for named data structures
+// where field names carry semantic meaning beyond just data organization.
 
-/// ## Named structs - Semantic field relationships
+/// Named structs - Semantic field relationships.
 ///
 /// **Serialization Pattern**: Each field creates a relation named after the field
 /// **Type Handling**: Struct name becomes the atom type (not generic "struct")
 /// **Field Semantics**: Field names like "position", "velocity" become relation names
 /// **Query Benefits**: Enables direct semantic queries like "SELECT * FROM position"
-pub struct StructSerializer<'a> {
+pub(crate) struct StructSerializer<'a> {
     serializer: &'a mut JsonDataSerializer,
     struct_id: String,
     struct_type: String,
@@ -808,7 +843,7 @@ impl<'a> SerializeStruct for StructSerializer<'a> {
     }
 }
 
-pub struct StructVariantSerializer<'a> {
+pub(crate) struct StructVariantSerializer<'a> {
     serializer: &'a mut JsonDataSerializer,
     variant_id: String,
     variant_type: String,

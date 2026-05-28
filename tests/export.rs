@@ -5,11 +5,9 @@
 //! compose.
 
 use caraspace::export::export_json_instance;
-use caraspace::jsondata::{JsonDataInstance, IAtom, IRelation};
+use caraspace::jsondata::{IAtom, IRelation, JsonDataInstance};
+use caraspace::spytial_annotations::{to_yaml, Constraint, Directive, HasSpytialDecorators};
 use caraspace::SpytialDecorators;
-use caraspace::spytial_annotations::{
-    to_yaml, Constraint, Directive, HasSpytialDecorators,
-};
 use serde::Serialize;
 
 // ──────────────────────────────────────────────
@@ -63,7 +61,10 @@ struct Flat {
 
 #[test]
 fn flat_struct_produces_field_relations() {
-    let val = Flat { name: "Alice".into(), age: 30 };
+    let val = Flat {
+        name: "Alice".into(),
+        age: 30,
+    };
     let inst = export_json_instance(&val);
 
     // One atom for the struct itself
@@ -101,7 +102,9 @@ struct Inner {
 
 #[test]
 fn nested_struct_creates_typed_atoms_and_relations() {
-    let val = Outer { child: Inner { value: 42 } };
+    let val = Outer {
+        child: Inner { value: 42 },
+    };
     let inst = export_json_instance(&val);
 
     // Both struct types appear as atom types
@@ -133,7 +136,9 @@ struct HasVec {
 
 #[test]
 fn vec_field_produces_idx_relations() {
-    let val = HasVec { items: vec![10, 20, 30] };
+    let val = HasVec {
+        items: vec![10, 20, 30],
+    };
     let inst = export_json_instance(&val);
 
     let idx_rel = relation(&inst, "idx");
@@ -184,6 +189,7 @@ fn option_none_produces_none_atom() {
 // ──────────────────────────────────────────────
 
 #[derive(Serialize)]
+#[allow(dead_code)]
 enum Status {
     Active,
     Inactive,
@@ -196,7 +202,9 @@ struct WithEnum {
 
 #[test]
 fn unit_enum_variant_becomes_typed_atom() {
-    let val = WithEnum { status: Status::Active };
+    let val = WithEnum {
+        status: Status::Active,
+    };
     let inst = export_json_instance(&val);
 
     // The variant produces an atom with the enum type name and variant label
@@ -250,7 +258,11 @@ fn boolean_atoms_are_singletons() {
         .iter()
         .filter(|a| a.r#type == "bool" && a.label == "true")
         .collect();
-    assert_eq!(true_atoms.len(), 1, "both `true` values should share one atom");
+    assert_eq!(
+        true_atoms.len(),
+        1,
+        "both `true` values should share one atom"
+    );
 }
 
 // ──────────────────────────────────────────────
@@ -419,10 +431,10 @@ fn decorators_inherited_through_option_box() {
         "Node's #[attribute] should be inherited through Option<Box<Node>>"
     );
     assert!(
-        list_decs.constraints.iter().any(|c| matches!(
-            c,
-            Constraint::Orientation(_)
-        )),
+        list_decs
+            .constraints
+            .iter()
+            .any(|c| matches!(c, Constraint::Orientation(_))),
         "Node's #[orientation] should be inherited through Option<Box<Node>>"
     );
 }
@@ -448,6 +460,7 @@ fn type_without_attributes_has_empty_decorators() {
 // ──────────────────────────────────────────────
 
 #[derive(Serialize, SpytialDecorators)]
+#[allow(dead_code)]
 enum Direction {
     Up,
     Down,
@@ -480,10 +493,22 @@ fn multiple_annotation_types_all_captured() {
     assert_eq!(decs.constraints.len(), 2, "orientation + align");
     assert_eq!(decs.directives.len(), 2, "atom_color + hide_atom");
 
-    assert!(decs.constraints.iter().any(|c| matches!(c, Constraint::Orientation(_))));
-    assert!(decs.constraints.iter().any(|c| matches!(c, Constraint::Align(_))));
-    assert!(decs.directives.iter().any(|d| matches!(d, Directive::AtomColor(_))));
-    assert!(decs.directives.iter().any(|d| matches!(d, Directive::HideAtom(_))));
+    assert!(decs
+        .constraints
+        .iter()
+        .any(|c| matches!(c, Constraint::Orientation(_))));
+    assert!(decs
+        .constraints
+        .iter()
+        .any(|c| matches!(c, Constraint::Align(_))));
+    assert!(decs
+        .directives
+        .iter()
+        .any(|d| matches!(d, Directive::AtomColor(_))));
+    assert!(decs
+        .directives
+        .iter()
+        .any(|d| matches!(d, Directive::HideAtom(_))));
 }
 
 // ──────────────────────────────────────────────
@@ -540,7 +565,10 @@ fn three_level_decorator_inheritance() {
         .collect();
 
     assert!(flags.contains(&"from_b"), "B's flag should reach A");
-    assert!(flags.contains(&"from_c"), "C's flag should reach A through B");
+    assert!(
+        flags.contains(&"from_c"),
+        "C's flag should reach A through B"
+    );
 }
 
 // ──────────────────────────────────────────────
@@ -602,10 +630,9 @@ fn mixed_decorated_and_undecorated_fields() {
         "MixedFields' own attribute should be present"
     );
     assert!(
-        decs.directives.iter().any(|d| matches!(
-            d,
-            Directive::AtomColor(_)
-        )),
+        decs.directives
+            .iter()
+            .any(|d| matches!(d, Directive::AtomColor(_))),
         "Child's atom_color should be inherited"
     );
     assert!(
@@ -623,7 +650,11 @@ fn mixed_decorated_and_undecorated_fields() {
 
 #[test]
 fn data_instance_and_decorators_agree_on_types() {
-    let val = Parent { child: Child { name: "test".into() } };
+    let val = Parent {
+        child: Child {
+            name: "test".into(),
+        },
+    };
     let inst = export_json_instance(&val);
     let decs = Parent::decorators();
 
