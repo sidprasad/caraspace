@@ -21,3 +21,9 @@ test_output.html
 Thumbs.db
 
 macros/target/
+
+# mdBook build output
+docs/book/
+
+# Per-user Claude Code config + scratch
+.claude/

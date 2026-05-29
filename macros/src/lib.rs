@@ -1,16 +1,21 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, DeriveInput, Attribute, Data, Fields, Type, PathArguments, GenericArgument};
+use syn::{
+    parse_macro_input, Attribute, Data, DeriveInput, Fields, GenericArgument, PathArguments, Type,
+};
 
 /// Collect decorators from field types at compile time
 /// This walks the type tree and generates calls to collect decorators from nested types
-fn collect_field_type_decorators(data: &Data, self_type_name: &str) -> Vec<proc_macro2::TokenStream> {
+fn collect_field_type_decorators(
+    data: &Data,
+    self_type_name: &str,
+) -> Vec<proc_macro2::TokenStream> {
     let mut field_decorators = Vec::new();
     let mut seen_types = std::collections::HashSet::new();
-    
+
     // Add the self type to seen_types to prevent self-referential includes
     seen_types.insert(self_type_name.to_string());
-    
+
     if let Data::Struct(data_struct) = data {
         match &data_struct.fields {
             Fields::Named(fields) => {
@@ -26,25 +31,30 @@ fn collect_field_type_decorators(data: &Data, self_type_name: &str) -> Vec<proc_
             Fields::Unit => {}
         }
     }
-    
+
     field_decorators
 }
 
 /// Analyze a field type and generate decorator-collection calls for nested types.
 ///
-/// Containers (`Vec`, `Option`, `Box`) are unwrapped to reach the inner type.
+/// Containers (`Vec`, `Option`, `Box`, `Rc`, `Arc`, `RefCell`, `Cell`,
+/// `VecDeque`, `LinkedList`) are unwrapped to reach the inner type.
 /// Primitives and standard collections are skipped (they can never carry
 /// decorators).  Everything else gets a probe call via [`DecoProbe`] — if the
 /// type implements `HasSpytialDecorators` the real decorators are returned;
 /// otherwise the probe safely returns an empty set.
-fn analyze_field_type(ty: &Type, seen_types: &mut std::collections::HashSet<String>) -> Vec<proc_macro2::TokenStream> {
+fn analyze_field_type(
+    ty: &Type,
+    seen_types: &mut std::collections::HashSet<String>,
+) -> Vec<proc_macro2::TokenStream> {
     match ty {
         Type::Path(type_path) => {
             if let Some(segment) = type_path.path.segments.last() {
                 let name = segment.ident.to_string();
                 match name.as_str() {
                     // Containers: unwrap to reach the inner type
-                    "Vec" | "Option" | "Box" => {
+                    "Vec" | "Option" | "Box" | "Rc" | "Arc" | "RefCell" | "Cell" | "VecDeque"
+                    | "LinkedList" => {
                         if let PathArguments::AngleBracketed(args) = &segment.arguments {
                             if let Some(GenericArgument::Type(inner)) = args.args.first() {
                                 return analyze_inner_type(inner, seen_types);
@@ -52,11 +62,9 @@ fn analyze_field_type(ty: &Type, seen_types: &mut std::collections::HashSet<Stri
                         }
                     }
                     // Primitives and std collections: can never have decorators
-                    "i8" | "i16" | "i32" | "i64" | "i128"
-                    | "u8" | "u16" | "u32" | "u64" | "u128"
-                    | "f32" | "f64" | "bool" | "char"
-                    | "String" | "str"
-                    | "Result" | "HashMap" | "HashSet" | "BTreeMap" | "BTreeSet" => {}
+                    "i8" | "i16" | "i32" | "i64" | "i128" | "isize" | "u8" | "u16" | "u32"
+                    | "u64" | "u128" | "usize" | "f32" | "f64" | "bool" | "char" | "String"
+                    | "str" | "Result" | "HashMap" | "HashSet" | "BTreeMap" | "BTreeSet" => {}
                     // Everything else: safe to probe
                     _ => {
                         if !seen_types.contains(&name) {
@@ -74,22 +82,24 @@ fn analyze_field_type(ty: &Type, seen_types: &mut std::collections::HashSet<Stri
 
 /// Recursively unwrap container generics (`Option<Box<T>>` → `T`), then
 /// probe the inner type.
-fn analyze_inner_type(ty: &Type, seen_types: &mut std::collections::HashSet<String>) -> Vec<proc_macro2::TokenStream> {
+fn analyze_inner_type(
+    ty: &Type,
+    seen_types: &mut std::collections::HashSet<String>,
+) -> Vec<proc_macro2::TokenStream> {
     if let Type::Path(type_path) = ty {
         if let Some(segment) = type_path.path.segments.last() {
             let name = segment.ident.to_string();
             match name.as_str() {
-                "Vec" | "Option" | "Box" => {
+                "Vec" | "Option" | "Box" | "Rc" | "Arc" | "RefCell" | "Cell" | "VecDeque"
+                | "LinkedList" => {
                     if let PathArguments::AngleBracketed(args) = &segment.arguments {
                         if let Some(GenericArgument::Type(inner)) = args.args.first() {
                             return analyze_inner_type(inner, seen_types);
                         }
                     }
                 }
-                "i8" | "i16" | "i32" | "i64" | "i128"
-                | "u8" | "u16" | "u32" | "u64" | "u128"
-                | "f32" | "f64" | "bool" | "char"
-                | "String" | "str"
+                "i8" | "i16" | "i32" | "i64" | "i128" | "isize" | "u8" | "u16" | "u32" | "u64"
+                | "u128" | "usize" | "f32" | "f64" | "bool" | "char" | "String" | "str"
                 | "Result" | "HashMap" | "HashSet" | "BTreeMap" | "BTreeSet" => {}
                 _ => {
                     if !seen_types.contains(&name) {
@@ -120,11 +130,11 @@ fn generate_probe_call(type_name: &str) -> proc_macro2::TokenStream {
 }
 
 /// Derive macro for implementing HasSpytialDecorators trait
-/// 
+///
 /// This macro analyzes all spatial annotation attributes on a struct
 /// and generates a single implementation of HasSpytialDecorators that includes
 /// all the annotations.
-/// 
+///
 /// # Supported Attributes
 /// - `#[attribute(field = "field_name")]` - Adds attribute directive
 /// - `#[flag(name = "flag_name")]` - Adds flag directive  
@@ -147,7 +157,7 @@ fn generate_probe_call(type_name: &str) -> proc_macro2::TokenStream {
 /// ```rust
 /// use serde::Serialize;
 /// use caraspace::SpytialDecorators;
-/// 
+///
 /// #[derive(Serialize, SpytialDecorators)]
 /// #[attribute(field = "name")]
 /// #[flag(name = "important")]
@@ -156,19 +166,42 @@ fn generate_probe_call(type_name: &str) -> proc_macro2::TokenStream {
 ///     age: u32,
 /// }
 /// ```
-#[proc_macro_derive(SpytialDecorators, attributes(attribute, flag, orientation, align, cyclic, group, atom_color, size, icon, edge_style, projection, hide_field, hide_atom, inferred_edge, tag))]
+#[proc_macro_derive(
+    SpytialDecorators,
+    attributes(
+        attribute,
+        flag,
+        orientation,
+        align,
+        cyclic,
+        group,
+        atom_color,
+        size,
+        icon,
+        edge_style,
+        projection,
+        hide_field,
+        hide_atom,
+        inferred_edge,
+        tag
+    )
+)]
 pub fn derive_spytial_decorators(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    
+
     let name = &input.ident;
     let generics = &input.generics;
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
     // Parse spatial annotation attributes for this type
     let mut decorator_calls = Vec::new();
-    
+
     for attr in &input.attrs {
-        match parse_spatial_attribute(attr) {
+        let parsed = match parse_spatial_attribute(attr) {
+            Ok(parsed) => parsed,
+            Err(err) => return err.to_compile_error().into(),
+        };
+        match parsed {
             Some(SpatialAttribute::Attribute { field }) => {
                 decorator_calls.push(quote! {
                     .attribute(#field, None)
@@ -179,27 +212,48 @@ pub fn derive_spytial_decorators(input: TokenStream) -> TokenStream {
                     .flag(#name)
                 });
             }
-            Some(SpatialAttribute::Orientation { selector, directions, negated }) => {
+            Some(SpatialAttribute::Orientation {
+                selector,
+                directions,
+                negated,
+            }) => {
                 decorator_calls.push(quote! {
                     .orientation(#selector, vec![#(#directions),*], #negated)
                 });
             }
-            Some(SpatialAttribute::Align { selector, direction, negated }) => {
+            Some(SpatialAttribute::Align {
+                selector,
+                direction,
+                negated,
+            }) => {
                 decorator_calls.push(quote! {
                     .align(#selector, #direction, #negated)
                 });
             }
-            Some(SpatialAttribute::Cyclic { selector, direction, negated }) => {
+            Some(SpatialAttribute::Cyclic {
+                selector,
+                direction,
+                negated,
+            }) => {
                 decorator_calls.push(quote! {
                     .cyclic(#selector, #direction, #negated)
                 });
             }
-            Some(SpatialAttribute::GroupSelector { selector, name, negated }) => {
+            Some(SpatialAttribute::GroupSelector {
+                selector,
+                name,
+                negated,
+            }) => {
                 decorator_calls.push(quote! {
                     .group_selector_based(#selector, #name, #negated)
                 });
             }
-            Some(SpatialAttribute::GroupField { field, group_on, add_to_group, negated }) => {
+            Some(SpatialAttribute::GroupField {
+                field,
+                group_on,
+                add_to_group,
+                negated,
+            }) => {
                 decorator_calls.push(quote! {
                     .group_field_based(#field, #group_on, #add_to_group, None, #negated)
                 });
@@ -209,12 +263,20 @@ pub fn derive_spytial_decorators(input: TokenStream) -> TokenStream {
                     .atom_color(#selector, #value)
                 });
             }
-            Some(SpatialAttribute::Size { selector, height, width }) => {
+            Some(SpatialAttribute::Size {
+                selector,
+                height,
+                width,
+            }) => {
                 decorator_calls.push(quote! {
                     .size(#selector, #height, #width)
                 });
             }
-            Some(SpatialAttribute::Icon { selector, path, show_labels }) => {
+            Some(SpatialAttribute::Icon {
+                selector,
+                path,
+                show_labels,
+            }) => {
                 decorator_calls.push(quote! {
                     .icon(#selector, #path, #show_labels)
                 });
@@ -284,7 +346,11 @@ pub fn derive_spytial_decorators(input: TokenStream) -> TokenStream {
                     .inferred_edge(#name, #selector)
                 });
             }
-            Some(SpatialAttribute::Tag { to_tag, name, value }) => {
+            Some(SpatialAttribute::Tag {
+                to_tag,
+                name,
+                value,
+            }) => {
                 decorator_calls.push(quote! {
                     .tag(#to_tag, #name, #value)
                 });
@@ -292,14 +358,14 @@ pub fn derive_spytial_decorators(input: TokenStream) -> TokenStream {
             None => {}
         }
     }
-    
+
     // Second, analyze field types and collect their decorators at compile time
     // Only do this for structs - enums don't have fields to analyze
     let field_type_decorators = match &input.data {
         Data::Struct(_) => collect_field_type_decorators(&input.data, &name.to_string()),
         Data::Enum(_) | Data::Union(_) => Vec::new(), // Enums and unions just return empty decorators
     };
-    
+
     // Combine own decorators with field type decorators
     decorator_calls.extend(field_type_decorators);
 
@@ -314,7 +380,7 @@ pub fn derive_spytial_decorators(input: TokenStream) -> TokenStream {
                         #(#decorator_calls)*
                         .build();
                     caraspace::spytial_annotations::register_type_decorators(
-                        stringify!(#name), 
+                        stringify!(#name),
                         decorators.clone()
                     );
                 });
@@ -331,16 +397,52 @@ pub fn derive_spytial_decorators(input: TokenStream) -> TokenStream {
 
 #[derive(Debug)]
 enum SpatialAttribute {
-    Attribute { field: String },
-    Flag { name: String },
-    Orientation { selector: String, directions: Vec<String>, negated: bool },
-    Align { selector: String, direction: String, negated: bool },
-    Cyclic { selector: String, direction: String, negated: bool },
-    GroupSelector { selector: String, name: String, negated: bool },
-    GroupField { field: String, group_on: u32, add_to_group: u32, negated: bool },
-    AtomColor { selector: String, value: String },
-    Size { selector: String, height: u32, width: u32 },
-    Icon { selector: String, path: String, show_labels: bool },
+    Attribute {
+        field: String,
+    },
+    Flag {
+        name: String,
+    },
+    Orientation {
+        selector: String,
+        directions: Vec<String>,
+        negated: bool,
+    },
+    Align {
+        selector: String,
+        direction: String,
+        negated: bool,
+    },
+    Cyclic {
+        selector: String,
+        direction: String,
+        negated: bool,
+    },
+    GroupSelector {
+        selector: String,
+        name: String,
+        negated: bool,
+    },
+    GroupField {
+        field: String,
+        group_on: u32,
+        add_to_group: u32,
+        negated: bool,
+    },
+    AtomColor {
+        selector: String,
+        value: String,
+    },
+    Size {
+        selector: String,
+        height: u32,
+        width: u32,
+    },
+    Icon {
+        selector: String,
+        path: String,
+        show_labels: bool,
+    },
     EdgeStyle {
         field: String,
         value: String,
@@ -351,16 +453,30 @@ enum SpatialAttribute {
         show_label: Option<bool>,
         hidden: Option<bool>,
     },
-    Projection { sig: String },
-    HideField { field: String, selector: Option<String> },
-    HideAtom { selector: String },
-    InferredEdge { name: String, selector: String },
-    Tag { to_tag: String, name: String, value: String },
+    Projection {
+        sig: String,
+    },
+    HideField {
+        field: String,
+        selector: Option<String>,
+    },
+    HideAtom {
+        selector: String,
+    },
+    InferredEdge {
+        name: String,
+        selector: String,
+    },
+    Tag {
+        to_tag: String,
+        name: String,
+        value: String,
+    },
 }
 
-fn parse_spatial_attribute(attr: &Attribute) -> Option<SpatialAttribute> {
+fn parse_spatial_attribute(attr: &Attribute) -> Result<Option<SpatialAttribute>, syn::Error> {
     let path = &attr.path();
-    
+
     if path.is_ident("attribute") {
         parse_attribute_args(attr)
     } else if path.is_ident("flag") {
@@ -392,54 +508,126 @@ fn parse_spatial_attribute(attr: &Attribute) -> Option<SpatialAttribute> {
     } else if path.is_ident("tag") {
         parse_tag_args(attr)
     } else {
-        None
+        Ok(None)
     }
 }
 
-fn parse_attribute_args(attr: &Attribute) -> Option<SpatialAttribute> {
+/// Walk the meta items of `attr` and emit a `syn::Error` (pointing at the
+/// offending key's span) for any key that isn't in `known`.  This catches typos
+/// like `#[orientation(typo = "...")]` at compile time instead of silently
+/// falling back to defaults.
+///
+/// The value side of each pair is consumed but not interpreted; the existing
+/// string-based extractors handle the actual value parsing.
+fn validate_known_keys(
+    attr: &Attribute,
+    attr_name: &str,
+    known: &[&str],
+) -> Result<(), syn::Error> {
+    // Attributes like `#[flag]` with no list body have no keys to check.
+    if attr.meta.require_list().is_err() {
+        return Ok(());
+    }
+
+    attr.parse_nested_meta(|meta| {
+        let ident = match meta.path.get_ident() {
+            Some(ident) => ident,
+            None => return Ok(()),
+        };
+        let key = ident.to_string();
+        if !known.iter().any(|k| *k == key) {
+            return Err(syn::Error::new(
+                ident.span(),
+                format!(
+                    "unknown parameter `{}` for #[{}(...)]; expected one of: {}",
+                    key,
+                    attr_name,
+                    known.join(", "),
+                ),
+            ));
+        }
+        // Consume the value (if any) so parse_nested_meta advances correctly.
+        // We use `syn::Expr` rather than `TokenStream` because the latter
+        // greedily eats the rest of the attribute (including subsequent
+        // key/value pairs).  Tolerate parse failures here — we only care about
+        // validating keys; any malformed value will surface elsewhere.
+        if let Ok(value) = meta.value() {
+            let _ = value.parse::<syn::Expr>();
+        }
+        Ok(())
+    })
+}
+
+fn parse_attribute_args(attr: &Attribute) -> Result<Option<SpatialAttribute>, syn::Error> {
+    validate_known_keys(attr, "attribute", &["field"])?;
     // Simple parsing - look for field = "value"
     if let Ok(meta) = attr.meta.require_list() {
         let tokens = &meta.tokens;
         let token_str = tokens.to_string();
-        
+
         if let Some(field) = extract_string_from_tokens(&token_str, "field") {
-            return Some(SpatialAttribute::Attribute { field });
+            return Ok(Some(SpatialAttribute::Attribute { field }));
         }
     }
-    
-    Some(SpatialAttribute::Attribute { field: "name".to_string() })
+
+    Ok(Some(SpatialAttribute::Attribute {
+        field: "name".to_string(),
+    }))
 }
 
-fn parse_flag_args(attr: &Attribute) -> Option<SpatialAttribute> {
+fn parse_flag_args(attr: &Attribute) -> Result<Option<SpatialAttribute>, syn::Error> {
+    validate_known_keys(attr, "flag", &["name"])?;
     if let Ok(meta) = attr.meta.require_list() {
         let tokens = &meta.tokens;
         let token_str = tokens.to_string();
-        
+
         if let Some(name) = extract_string_from_tokens(&token_str, "name") {
-            return Some(SpatialAttribute::Flag { name });
+            return Ok(Some(SpatialAttribute::Flag { name }));
         }
     }
-    
-    Some(SpatialAttribute::Flag { name: "important".to_string() })
+
+    Ok(Some(SpatialAttribute::Flag {
+        name: "important".to_string(),
+    }))
 }
 
-fn parse_orientation_args(attr: &Attribute) -> Option<SpatialAttribute> {
+fn parse_orientation_args(attr: &Attribute) -> Result<Option<SpatialAttribute>, syn::Error> {
+    validate_known_keys(attr, "orientation", &["selector", "directions", "negated"])?;
     if let Ok(meta) = attr.meta.require_list() {
         let tokens = &meta.tokens;
         let token_str = normalize_whitespace(&tokens.to_string());
 
-        let selector = extract_string_from_tokens(&token_str, "selector").unwrap_or_else(|| "".to_string());
+        let selector =
+            extract_string_from_tokens(&token_str, "selector").unwrap_or_else(|| "".to_string());
         let directions = extract_array_from_tokens(&token_str, "directions")
             .unwrap_or_else(|| vec!["up".to_string(), "down".to_string()]);
         let negated = extract_bool_from_tokens(&token_str, "negated").unwrap_or(false);
 
-        return Some(SpatialAttribute::Orientation { selector, directions, negated });
+        return Ok(Some(SpatialAttribute::Orientation {
+            selector,
+            directions,
+            negated,
+        }));
     }
 
-    None
+    Ok(None)
 }
 
-fn parse_group_args(attr: &Attribute) -> Option<SpatialAttribute> {
+fn parse_group_args(attr: &Attribute) -> Result<Option<SpatialAttribute>, syn::Error> {
+    // `group` accepts two shapes (selector-based or field-based); accept the
+    // union of valid keys here and let the body pick the right variant.
+    validate_known_keys(
+        attr,
+        "group",
+        &[
+            "selector",
+            "name",
+            "field",
+            "group_on",
+            "add_to_group",
+            "negated",
+        ],
+    )?;
     if let Ok(meta) = attr.meta.require_list() {
         let tokens = &meta.tokens;
         let token_str = normalize_whitespace(&tokens.to_string());
@@ -447,106 +635,162 @@ fn parse_group_args(attr: &Attribute) -> Option<SpatialAttribute> {
 
         if token_str.contains("field =") {
             // Field-based grouping
-            let field = extract_string_from_tokens(&token_str, "field").unwrap_or_else(|| "id".to_string());
+            let field =
+                extract_string_from_tokens(&token_str, "field").unwrap_or_else(|| "id".to_string());
             let group_on = extract_number_from_tokens(&token_str, "group_on").unwrap_or(1);
             let add_to_group = extract_number_from_tokens(&token_str, "add_to_group").unwrap_or(2);
 
-            Some(SpatialAttribute::GroupField { field, group_on, add_to_group, negated })
+            Ok(Some(SpatialAttribute::GroupField {
+                field,
+                group_on,
+                add_to_group,
+                negated,
+            }))
         } else {
             // Selector-based grouping
-            let selector = extract_string_from_tokens(&token_str, "selector").unwrap_or_else(|| "".to_string());
-            let name = extract_string_from_tokens(&token_str, "name").unwrap_or_else(|| "default".to_string());
+            let selector = extract_string_from_tokens(&token_str, "selector")
+                .unwrap_or_else(|| "".to_string());
+            let name = extract_string_from_tokens(&token_str, "name")
+                .unwrap_or_else(|| "default".to_string());
 
-            Some(SpatialAttribute::GroupSelector { selector, name, negated })
+            Ok(Some(SpatialAttribute::GroupSelector {
+                selector,
+                name,
+                negated,
+            }))
         }
     } else {
-        None
+        Ok(None)
     }
 }
 
-fn parse_align_args(attr: &Attribute) -> Option<SpatialAttribute> {
+fn parse_align_args(attr: &Attribute) -> Result<Option<SpatialAttribute>, syn::Error> {
+    validate_known_keys(attr, "align", &["selector", "direction", "negated"])?;
     if let Ok(meta) = attr.meta.require_list() {
         let tokens = &meta.tokens;
         let token_str = normalize_whitespace(&tokens.to_string());
 
-        let selector = extract_string_from_tokens(&token_str, "selector").unwrap_or_else(|| "".to_string());
-        let direction = extract_string_from_tokens(&token_str, "direction").unwrap_or_else(|| "horizontal".to_string());
+        let selector =
+            extract_string_from_tokens(&token_str, "selector").unwrap_or_else(|| "".to_string());
+        let direction = extract_string_from_tokens(&token_str, "direction")
+            .unwrap_or_else(|| "horizontal".to_string());
         let negated = extract_bool_from_tokens(&token_str, "negated").unwrap_or(false);
 
-        Some(SpatialAttribute::Align { selector, direction, negated })
+        Ok(Some(SpatialAttribute::Align {
+            selector,
+            direction,
+            negated,
+        }))
     } else {
-        None
+        Ok(None)
     }
 }
 
-fn parse_cyclic_args(attr: &Attribute) -> Option<SpatialAttribute> {
+fn parse_cyclic_args(attr: &Attribute) -> Result<Option<SpatialAttribute>, syn::Error> {
+    validate_known_keys(attr, "cyclic", &["selector", "direction", "negated"])?;
     if let Ok(meta) = attr.meta.require_list() {
         let tokens = &meta.tokens;
         let token_str = normalize_whitespace(&tokens.to_string());
 
-        let selector = extract_string_from_tokens(&token_str, "selector").unwrap_or_else(|| "".to_string());
-        let direction = extract_string_from_tokens(&token_str, "direction").unwrap_or_else(|| "up".to_string());
+        let selector =
+            extract_string_from_tokens(&token_str, "selector").unwrap_or_else(|| "".to_string());
+        let direction =
+            extract_string_from_tokens(&token_str, "direction").unwrap_or_else(|| "up".to_string());
         let negated = extract_bool_from_tokens(&token_str, "negated").unwrap_or(false);
 
-        Some(SpatialAttribute::Cyclic { selector, direction, negated })
+        Ok(Some(SpatialAttribute::Cyclic {
+            selector,
+            direction,
+            negated,
+        }))
     } else {
-        None
+        Ok(None)
     }
 }
 
-fn parse_atom_color_args(attr: &Attribute) -> Option<SpatialAttribute> {
+fn parse_atom_color_args(attr: &Attribute) -> Result<Option<SpatialAttribute>, syn::Error> {
+    validate_known_keys(attr, "atom_color", &["selector", "value"])?;
     if let Ok(meta) = attr.meta.require_list() {
         let tokens = &meta.tokens;
         let token_str = tokens.to_string();
-        
-        let selector = extract_string_from_tokens(&token_str, "selector").unwrap_or_else(|| "".to_string());
-        let value = extract_string_from_tokens(&token_str, "value").unwrap_or_else(|| "blue".to_string());
-        
-        Some(SpatialAttribute::AtomColor { selector, value })
+
+        let selector =
+            extract_string_from_tokens(&token_str, "selector").unwrap_or_else(|| "".to_string());
+        let value =
+            extract_string_from_tokens(&token_str, "value").unwrap_or_else(|| "blue".to_string());
+
+        Ok(Some(SpatialAttribute::AtomColor { selector, value }))
     } else {
-        None
+        Ok(None)
     }
 }
 
-fn parse_size_args(attr: &Attribute) -> Option<SpatialAttribute> {
+fn parse_size_args(attr: &Attribute) -> Result<Option<SpatialAttribute>, syn::Error> {
+    validate_known_keys(attr, "size", &["selector", "height", "width"])?;
     if let Ok(meta) = attr.meta.require_list() {
         let tokens = &meta.tokens;
         let token_str = tokens.to_string();
-        
-        let selector = extract_string_from_tokens(&token_str, "selector").unwrap_or_else(|| "".to_string());
+
+        let selector =
+            extract_string_from_tokens(&token_str, "selector").unwrap_or_else(|| "".to_string());
         let height = extract_number_from_tokens(&token_str, "height").unwrap_or(20);
         let width = extract_number_from_tokens(&token_str, "width").unwrap_or(30);
-        
-        Some(SpatialAttribute::Size { selector, height, width })
+
+        Ok(Some(SpatialAttribute::Size {
+            selector,
+            height,
+            width,
+        }))
     } else {
-        None
+        Ok(None)
     }
 }
 
-fn parse_icon_args(attr: &Attribute) -> Option<SpatialAttribute> {
+fn parse_icon_args(attr: &Attribute) -> Result<Option<SpatialAttribute>, syn::Error> {
+    validate_known_keys(attr, "icon", &["selector", "path", "show_labels"])?;
     if let Ok(meta) = attr.meta.require_list() {
         let tokens = &meta.tokens;
         let token_str = tokens.to_string();
-        
-        let selector = extract_string_from_tokens(&token_str, "selector").unwrap_or_else(|| "".to_string());
-        let path = extract_string_from_tokens(&token_str, "path").unwrap_or_else(|| "icon.png".to_string());
+
+        let selector =
+            extract_string_from_tokens(&token_str, "selector").unwrap_or_else(|| "".to_string());
+        let path = extract_string_from_tokens(&token_str, "path")
+            .unwrap_or_else(|| "icon.png".to_string());
         let show_labels = extract_bool_from_tokens(&token_str, "show_labels").unwrap_or(true);
-        
-        Some(SpatialAttribute::Icon { selector, path, show_labels })
+
+        Ok(Some(SpatialAttribute::Icon {
+            selector,
+            path,
+            show_labels,
+        }))
     } else {
-        None
+        Ok(None)
     }
 }
 
-fn parse_edge_style_args(attr: &Attribute) -> Option<SpatialAttribute> {
+fn parse_edge_style_args(attr: &Attribute) -> Result<Option<SpatialAttribute>, syn::Error> {
+    validate_known_keys(
+        attr,
+        "edge_style",
+        &[
+            "field",
+            "value",
+            "selector",
+            "filter",
+            "style",
+            "weight",
+            "show_label",
+            "hidden",
+        ],
+    )?;
     if let Ok(meta) = attr.meta.require_list() {
         let tokens = &meta.tokens;
         let token_str = normalize_whitespace(&tokens.to_string());
 
         let field = extract_string_from_tokens(&token_str, "field")
             .unwrap_or_else(|| "relation".to_string());
-        let value = extract_string_from_tokens(&token_str, "value")
-            .unwrap_or_else(|| "blue".to_string());
+        let value =
+            extract_string_from_tokens(&token_str, "value").unwrap_or_else(|| "blue".to_string());
         let selector = extract_string_from_tokens(&token_str, "selector");
         let filter = extract_string_from_tokens(&token_str, "filter");
         let style = extract_string_from_tokens(&token_str, "style");
@@ -554,7 +798,7 @@ fn parse_edge_style_args(attr: &Attribute) -> Option<SpatialAttribute> {
         let show_label = extract_bool_from_tokens(&token_str, "show_label");
         let hidden = extract_bool_from_tokens(&token_str, "hidden");
 
-        Some(SpatialAttribute::EdgeStyle {
+        Ok(Some(SpatialAttribute::EdgeStyle {
             field,
             value,
             selector,
@@ -563,67 +807,77 @@ fn parse_edge_style_args(attr: &Attribute) -> Option<SpatialAttribute> {
             weight,
             show_label,
             hidden,
-        })
+        }))
     } else {
-        None
+        Ok(None)
     }
 }
 
-fn parse_projection_args(attr: &Attribute) -> Option<SpatialAttribute> {
+fn parse_projection_args(attr: &Attribute) -> Result<Option<SpatialAttribute>, syn::Error> {
+    validate_known_keys(attr, "projection", &["sig"])?;
     if let Ok(meta) = attr.meta.require_list() {
         let tokens = &meta.tokens;
         let token_str = tokens.to_string();
-        
-        let sig = extract_string_from_tokens(&token_str, "sig").unwrap_or_else(|| "default".to_string());
-        
-        Some(SpatialAttribute::Projection { sig })
+
+        let sig =
+            extract_string_from_tokens(&token_str, "sig").unwrap_or_else(|| "default".to_string());
+
+        Ok(Some(SpatialAttribute::Projection { sig }))
     } else {
-        None
+        Ok(None)
     }
 }
 
-fn parse_hide_field_args(attr: &Attribute) -> Option<SpatialAttribute> {
+fn parse_hide_field_args(attr: &Attribute) -> Result<Option<SpatialAttribute>, syn::Error> {
+    validate_known_keys(attr, "hide_field", &["field", "selector"])?;
     if let Ok(meta) = attr.meta.require_list() {
         let tokens = &meta.tokens;
         let token_str = tokens.to_string();
-        
-        let field = extract_string_from_tokens(&token_str, "field").unwrap_or_else(|| "field".to_string());
+
+        let field =
+            extract_string_from_tokens(&token_str, "field").unwrap_or_else(|| "field".to_string());
         let selector = extract_string_from_tokens(&token_str, "selector");
-        
-        Some(SpatialAttribute::HideField { field, selector })
+
+        Ok(Some(SpatialAttribute::HideField { field, selector }))
     } else {
-        None
+        Ok(None)
     }
 }
 
-fn parse_hide_atom_args(attr: &Attribute) -> Option<SpatialAttribute> {
-    if let Ok(meta) = attr.meta.require_list() {
-        let tokens = &meta.tokens;
-        let token_str = tokens.to_string();
-        
-        let selector = extract_string_from_tokens(&token_str, "selector").unwrap_or_else(|| "".to_string());
-        
-        Some(SpatialAttribute::HideAtom { selector })
-    } else {
-        None
-    }
-}
-
-fn parse_inferred_edge_args(attr: &Attribute) -> Option<SpatialAttribute> {
+fn parse_hide_atom_args(attr: &Attribute) -> Result<Option<SpatialAttribute>, syn::Error> {
+    validate_known_keys(attr, "hide_atom", &["selector"])?;
     if let Ok(meta) = attr.meta.require_list() {
         let tokens = &meta.tokens;
         let token_str = tokens.to_string();
 
-        let name = extract_string_from_tokens(&token_str, "name").unwrap_or_else(|| "edge".to_string());
-        let selector = extract_string_from_tokens(&token_str, "selector").unwrap_or_else(|| "".to_string());
+        let selector =
+            extract_string_from_tokens(&token_str, "selector").unwrap_or_else(|| "".to_string());
 
-        Some(SpatialAttribute::InferredEdge { name, selector })
+        Ok(Some(SpatialAttribute::HideAtom { selector }))
     } else {
-        None
+        Ok(None)
     }
 }
 
-fn parse_tag_args(attr: &Attribute) -> Option<SpatialAttribute> {
+fn parse_inferred_edge_args(attr: &Attribute) -> Result<Option<SpatialAttribute>, syn::Error> {
+    validate_known_keys(attr, "inferred_edge", &["name", "selector"])?;
+    if let Ok(meta) = attr.meta.require_list() {
+        let tokens = &meta.tokens;
+        let token_str = tokens.to_string();
+
+        let name =
+            extract_string_from_tokens(&token_str, "name").unwrap_or_else(|| "edge".to_string());
+        let selector =
+            extract_string_from_tokens(&token_str, "selector").unwrap_or_else(|| "".to_string());
+
+        Ok(Some(SpatialAttribute::InferredEdge { name, selector }))
+    } else {
+        Ok(None)
+    }
+}
+
+fn parse_tag_args(attr: &Attribute) -> Result<Option<SpatialAttribute>, syn::Error> {
+    validate_known_keys(attr, "tag", &["to_tag", "name", "value"])?;
     if let Ok(meta) = attr.meta.require_list() {
         let tokens = &meta.tokens;
         let token_str = tokens.to_string();
@@ -632,9 +886,13 @@ fn parse_tag_args(attr: &Attribute) -> Option<SpatialAttribute> {
         let name = extract_string_from_tokens(&token_str, "name").unwrap_or_default();
         let value = extract_string_from_tokens(&token_str, "value").unwrap_or_default();
 
-        Some(SpatialAttribute::Tag { to_tag, name, value })
+        Ok(Some(SpatialAttribute::Tag {
+            to_tag,
+            name,
+            value,
+        }))
     } else {
-        None
+        Ok(None)
     }
 }
 
@@ -653,7 +911,7 @@ fn extract_string_from_tokens(tokens: &str, key: &str) -> Option<String> {
         format!("{} =\"", key),
         format!("{}= \"", key),
     ];
-    
+
     for pattern in &patterns {
         if let Some(start) = tokens.find(pattern) {
             let start = start + pattern.len();
@@ -712,7 +970,7 @@ fn extract_array_from_tokens(tokens: &str, key: &str) -> Option<Vec<String>> {
         format!("{}= [", key),
         format!("{} =[", key),
     ];
-    
+
     for pattern in &patterns {
         if let Some(start) = tokens.find(pattern) {
             let start = start + pattern.len();

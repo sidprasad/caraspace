@@ -1,0 +1,21 @@
+[book]
+title = "Caraspace"
+authors = ["Siddhartha Prasad"]
+description = "Drop-in replacement for std::dbg! that opens an interactive diagram of Rust values."
+language = "en"
+src = "src"
+
+[output.html]
+default-theme = "rust"
+preferred-dark-theme = "ayu"
+git-repository-url = "https://github.com/sidprasad/caraspace"
+git-repository-icon = "fa-github"
+edit-url-template = "https://github.com/sidprasad/caraspace/edit/main/docs/{path}"
+site-url = "/caraspace/"
+
+[output.html.search]
+enable = true
+
+[output.html.fold]
+enable = true
+level = 1

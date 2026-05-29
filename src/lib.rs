@@ -1,10 +1,22 @@
-//! CaraSpace is the Rust-facing integration layer for Spytial.
+//! Caraspace is a drop-in replacement for [`std::dbg!`] that opens an
+//! interactive diagram of Rust values in the browser.
 //!
-//! Start with `README.md` for the project overview and `USER_GUIDE.md` for the
-//! end-user workflow.
+//! The crate-level entry points are [`dbg!`] (a strict superset of
+//! [`std::dbg!`]) and [`diagram`] (no stderr, doesn't move). Both work on any
+//! type that derives [`std::fmt::Debug`], [`serde::Serialize`], and
+//! [`SpytialDecorators`].
+//!
+//! Start with the guide at <https://sidprasad.github.io/caraspace/> for the
+//! tutorial, decorator reference, and architecture notes. The README on
+//! GitHub has the elevator pitch.
 
+#![deny(missing_docs)]
+
+/// Serde-driven export of Rust values into the relational [`jsondata`] shape.
 pub mod export;
+/// Serializable atom/relation data model consumed by spytial-core.
 pub mod jsondata;
+/// SpyTial decorator types, derive-macro runtime, and YAML serialization.
 pub mod spytial_annotations;
 
 pub use export::export_json_instance;
@@ -13,7 +25,32 @@ pub use caraspace_export_macros::SpytialDecorators;
 use serde::Serialize;
 use std::env;
 use std::fs;
-use std::process::Command;
+use std::path::PathBuf;
+use std::process::{self, Command};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::SystemTime;
+
+static DIAGRAM_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+/// Pick the path where the rendered HTML diagram should be written.
+///
+/// If `SPYTIAL_OUTPUT_PATH` is set, that path is used verbatim (used by the Docker
+/// setup, which needs a stable filename to serve). Otherwise a unique path under
+/// the OS temp dir is generated using pid + an atomic counter + nanoseconds, so
+/// concurrent `dbg!` calls do not trample each other's files.
+fn diagram_output_path() -> PathBuf {
+    if let Ok(explicit) = env::var("SPYTIAL_OUTPUT_PATH") {
+        return PathBuf::from(explicit);
+    }
+
+    let pid = process::id();
+    let counter = DIAGRAM_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let nanos = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map(|d| d.subsec_nanos())
+        .unwrap_or(0);
+    env::temp_dir().join(format!("caraspace-{pid}-{counter}-{nanos}.html"))
+}
 
 /// Creates a diagram of the given data structure and opens it in the browser.
 ///
@@ -161,41 +198,93 @@ macro_rules! dbg {
 }
 
 /// Internal implementation shared by diagram functions.
+///
+/// Best-effort: any failure (serialization, JSON encoding, tempfile write, browser
+/// launch) is reported via `eprintln!` and execution continues. `dbg!(x)` always
+/// returns `x` regardless of whether the diagram step succeeded.
 fn diagram_impl<T: Serialize>(value: &T, spec: &str) {
-    // Export the struct to our custom JSON format with type information
     let json_instance = export_json_instance(value);
-    let json_data = serde_json::to_string_pretty(&json_instance).unwrap();
+    let json_data = match serde_json::to_string_pretty(&json_instance) {
+        Ok(json) => json,
+        Err(err) => {
+            eprintln!("caraspace: could not encode diagram JSON, skipping: {err}");
+            return;
+        }
+    };
 
-    // Load the HTML template and replace the placeholders
     let template = include_str!("../templates/template.html");
     let rendered_html = template
+        .replace(
+            "/*__SPYTIAL_CORE_CSS__*/",
+            include_str!("../templates/vendor/spytial-core.css"),
+        )
+        .replace(
+            "/*__REACT_COMPONENTS_CSS__*/",
+            include_str!("../templates/vendor/react-component-integration.css"),
+        )
+        .replace(
+            "/*__SPYTIAL_CORE_JS__*/",
+            include_str!("../templates/vendor/spytial-core.global.js"),
+        )
+        .replace(
+            "/*__REACT_COMPONENTS_JS__*/",
+            include_str!("../templates/vendor/react-component-integration.global.js"),
+        )
         .replace("{{ json_data }}", &json_data)
         .replace("{{ spytial_spec }}", spec);
 
-    // Save the rendered HTML to a temporary file
-    let temp_dir = env::temp_dir();
-    let temp_file_path = temp_dir.join("rust_viz_data.html");
-    fs::write(&temp_file_path, rendered_html).expect("Failed to write HTML to file");
+    let temp_file_path = diagram_output_path();
+    if let Err(err) = fs::write(&temp_file_path, rendered_html) {
+        eprintln!(
+            "caraspace: could not write diagram to {}: {err}",
+            temp_file_path.display()
+        );
+        return;
+    }
 
     let skip_browser_open = env::var("SPYTIAL_NO_OPEN")
         .map(|raw| matches!(raw.to_ascii_lowercase().as_str(), "1" | "true" | "yes"))
         .unwrap_or(false);
 
     if skip_browser_open {
+        eprintln!("caraspace: diagram written to {}", temp_file_path.display());
         return;
     }
 
     #[cfg(target_os = "macos")]
-    let open_cmd = "open";
+    let open_cmd: Option<&str> = Some("open");
     #[cfg(target_os = "windows")]
-    let open_cmd = "start";
-    #[cfg(target_os = "linux")]
-    let open_cmd = "xdg-open";
+    let open_cmd: Option<&str> = Some("start");
+    #[cfg(any(
+        target_os = "linux",
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd",
+        target_os = "dragonfly"
+    ))]
+    let open_cmd: Option<&str> = Some("xdg-open");
+    #[cfg(not(any(
+        target_os = "macos",
+        target_os = "windows",
+        target_os = "linux",
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd",
+        target_os = "dragonfly",
+    )))]
+    let open_cmd: Option<&str> = None;
 
-    if let Err(error) = Command::new(open_cmd).arg(&temp_file_path).spawn() {
+    let Some(open_cmd) = open_cmd else {
         eprintln!(
-            "Failed to open browser: {}. Open this file manually: {}",
-            error,
+            "caraspace: no known browser-open command for this platform. Open this file manually: {}",
+            temp_file_path.display()
+        );
+        return;
+    };
+
+    if let Err(err) = Command::new(open_cmd).arg(&temp_file_path).spawn() {
+        eprintln!(
+            "caraspace: failed to open browser ({err}). Open this file manually: {}",
             temp_file_path.display()
         );
     }
