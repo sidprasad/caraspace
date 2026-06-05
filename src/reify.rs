@@ -1,7 +1,7 @@
 //! Reconstructing Rust values from the relational [`jsondata`](crate::jsondata)
 //! shape — the inverse of [`crate::export`].
 //!
-//! [`from_datum`] is a serde [`Deserializer`] over a
+//! [`from_datum`] is a serde `Deserializer` over a
 //! [`JsonDataInstance`](crate::jsondata::JsonDataInstance): it walks the flat
 //! atom/relation graph from a root atom and rebuilds a genuine `T`, so `{:?}`
 //! runs the real [`Debug`] impl. [`replit`] is
@@ -26,7 +26,7 @@ use std::collections::HashMap;
 use std::fmt::{self, Debug, Display};
 
 /// Error produced while reconstructing a value from a
-/// [`JsonDataInstance`](crate::jsondata::JsonDataInstance).
+/// [`JsonDataInstance`].
 #[derive(Debug, Clone)]
 pub struct ReifyError(String);
 
