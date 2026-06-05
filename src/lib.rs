@@ -16,10 +16,13 @@
 pub mod export;
 /// Serializable atom/relation data model consumed by spytial-core.
 pub mod jsondata;
+/// Reconstruct Rust values from the relational [`jsondata`] shape (inverse of [`export`]).
+pub mod reify;
 /// SpyTial decorator types, derive-macro runtime, and YAML serialization.
 pub mod spytial_annotations;
 
 pub use export::export_json_instance;
+pub use reify::{from_datum, from_datum_root, replit, replit_root, ReifyError};
 // Re-export the derive macro for spatial annotations
 pub use caraspace_export_macros::SpytialDecorators;
 use serde::Serialize;

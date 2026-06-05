@@ -13,9 +13,29 @@ use serde::Serialize;
 ///
 /// Serialized as JSON in the HTML template and consumed by spytial-core's
 /// `JSONDataInstance` constructor in the browser.
+///
+/// # Root atom
+///
+/// Atoms are stored in serialization order, so **`atoms[0]` is the root** — the
+/// atom for the top-level value — because [`export_json_instance`] emits a
+/// container/struct atom before recursing into its children. Reconstruction
+/// relies on this: [`from_datum`] starts at `atoms[0]`, and [`from_datum_root`]
+/// takes an explicit id for callers that build or reorder an instance themselves.
+///
+/// There is intentionally **no `rootId` field**. For `export` output it would be
+/// redundant (the root is always `atoms[0]`, and the data is acyclic so the root
+/// is also recoverable as the atom that no relation targets), and it would not
+/// survive a spytial-core round-trip anyway, since unknown JSON keys are dropped.
+/// A future producer that needs an explicit root should pass it to
+/// [`from_datum_root`] rather than rely on a field that silently disappears.
+///
+/// [`export_json_instance`]: crate::export_json_instance
+/// [`from_datum`]: crate::from_datum
+/// [`from_datum_root`]: crate::from_datum_root
 #[derive(Serialize, Debug)]
 pub struct JsonDataInstance {
-    /// All atoms (graph nodes), in serialization order.
+    /// All atoms (graph nodes), in serialization order — `atoms[0]` is the root
+    /// (see the "Root atom" note on [`JsonDataInstance`]).
     pub atoms: Vec<IAtom>,
     /// All relations (edges), grouped by relation name.
     pub relations: Vec<IRelation>,
