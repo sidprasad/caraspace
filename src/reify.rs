@@ -17,13 +17,10 @@
 //! representable in the exported form and are out of scope; sharing/aliasing is
 //! not preserved (export duplicates it), which is invisible to `==`/`{:?}`.
 //!
-//! Known limitation — **nested `Option`**: `export` unwraps `Some` (it emits no
-//! wrapper atom) and shares a single `None` atom, so `Some(None)` and `None` are
-//! identical in the exported graph. `from_datum::<Option<Option<T>>>` therefore
-//! reconstructs `Some(None)` as `None`. Plain options and `Some(Some(x))` are
-//! unaffected. This is an export-side collapse — the `Some`-unwrapping is
-//! intentional (it keeps `Some(x)` rendering as `x` in the diagram) — not
-//! something `from_datum` can recover from the datum alone.
+//! Nested `Option` round-trips faithfully: `export` unwraps `Some(x)` (so the
+//! common case stays a single clean atom) but inserts a `Some` wrapper atom when
+//! the inner is a `None`/`Some`, so `Some(None)` is distinct from `None` and any
+//! nesting depth is recoverable.
 
 use crate::jsondata::{IAtom, ITuple, JsonDataInstance};
 use serde::de::{
@@ -63,16 +60,42 @@ impl de::Error for ReifyError {
     }
 }
 
-/// Reconstruct a `T` from a data instance, starting at the first atom.
+/// Reconstruct a `T` from a data instance, starting at its root atom.
 ///
-/// [`crate::export`] emits the root value first, so `atoms[0]` is the root. Use
-/// [`from_datum_root`] to start from a specific atom id instead.
+/// The root is the atom that no relation targets (for `export` output, the
+/// top-level value). Use [`from_datum_root`] to start from a specific atom id.
 pub fn from_datum<T: DeserializeOwned>(datum: &JsonDataInstance) -> Result<T, ReifyError> {
-    let root = datum
+    from_datum_root(datum, find_root(datum)?)
+}
+
+/// The root atom: the first atom (in serialization order) that no relation
+/// targets. Robust to the `Some`-wrapper case, where `export` emits the wrapper
+/// *after* its inner — so `atoms[0]` is not always the root.
+fn find_root(datum: &JsonDataInstance) -> Result<&str, ReifyError> {
+    if datum.atoms.is_empty() {
+        return Err(ReifyError::msg("empty data instance: no atoms"));
+    }
+    let ids: std::collections::HashSet<&str> = datum.atoms.iter().map(|a| a.id.as_str()).collect();
+    let mut targeted: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    for rel in &datum.relations {
+        for t in &rel.tuples {
+            // position 0 is the source; 1.. are targets (skip non-atom literals
+            // like the `idx` position string, which aren't real atom ids).
+            for tgt in t.atoms.iter().skip(1) {
+                if ids.contains(tgt.as_str()) {
+                    targeted.insert(tgt.as_str());
+                }
+            }
+        }
+    }
+    datum
         .atoms
-        .first()
-        .ok_or_else(|| ReifyError::msg("empty data instance: no atoms"))?;
-    from_datum_root(datum, &root.id)
+        .iter()
+        .map(|a| a.id.as_str())
+        .find(|id| !targeted.contains(id))
+        .ok_or_else(|| {
+            ReifyError::msg("no root atom: every atom is referenced (unexpected for export output)")
+        })
 }
 
 /// Reconstruct a `T` starting from an explicit root atom id.
@@ -300,10 +323,17 @@ impl<'i, 'a, 'de> Deserializer<'de> for NodeDeserializer<'i, 'a> {
 
     fn deserialize_option<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, ReifyError> {
         let a = self.atom()?;
-        if a.r#type == "None" {
-            visitor.visit_none()
-        } else {
-            visitor.visit_some(self)
+        match a.r#type.as_str() {
+            // `None` singleton.
+            "None" => visitor.visit_none(),
+            // `Some` wrapper — export inserts it only to keep an inner
+            // `None`/`Some` distinct; descend through its `value` relation.
+            "Some" => {
+                let inner = self.index.single_target(self.atom_id, "value")?;
+                visitor.visit_some(self.child(inner))
+            }
+            // Unwrapped `Some(x)`: the atom *is* `x`.
+            _ => visitor.visit_some(self),
         }
     }
 
