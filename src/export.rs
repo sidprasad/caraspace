@@ -350,7 +350,29 @@ impl<'a> Serializer for &'a mut JsonDataSerializer {
     }
 
     fn serialize_some<T: ?Sized + Serialize>(self, value: &T) -> Result<Self::Ok, Self::Error> {
-        value.serialize(self)
+        // Unwrap `Some` by default: `Some(x)` shares `x`'s atom, keeping the
+        // diagram clean (`Option<T>` points straight at the `T`). But when the
+        // inner is itself absent/optional — a `None` singleton or another `Some`
+        // wrapper — insert a `Some` wrapper atom so `Some(None)` stays distinct
+        // from `None` and arbitrarily nested options remain recoverable.
+        let inner_id = value.serialize(&mut *self)?;
+        let inner_is_optionish = self
+            .atoms
+            .iter()
+            .find(|a| a.id == inner_id)
+            .map(|a| a.r#type == "None" || a.r#type == "Some")
+            .unwrap_or(false);
+        if inner_is_optionish {
+            let some_id = self.emit_atom("Some", "Some");
+            self.push_relation(
+                "value",
+                vec![some_id.clone(), inner_id],
+                vec!["Some", "atom"],
+            );
+            Ok(some_id)
+        } else {
+            Ok(inner_id)
+        }
     }
 
     fn serialize_unit(self) -> Result<Self::Ok, Self::Error> {

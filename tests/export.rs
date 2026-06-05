@@ -184,6 +184,28 @@ fn option_none_produces_none_atom() {
     assert_eq!(target.r#type, "None");
 }
 
+#[derive(Serialize)]
+struct NestedOption {
+    v: Option<Option<u32>>,
+}
+
+#[test]
+fn some_wraps_only_around_inner_none() {
+    // Some(None) gets a `Some` wrapper atom pointing at the `None`, so it is
+    // distinguishable from a plain `None`. (Some of a non-option still unwraps,
+    // covered by option_some_unwraps_to_inner_value.)
+    let inst = export_json_instance(&NestedOption { v: Some(None) });
+    let target = atom_by_id(&inst, &relation(&inst, "v").tuples[0].atoms[1]);
+    assert_eq!(target.r#type, "Some");
+    let inner = atom_by_id(&inst, &relation(&inst, "value").tuples[0].atoms[1]);
+    assert_eq!(inner.r#type, "None");
+
+    // Plain None stays a bare None atom (no wrapper).
+    let inst_none = export_json_instance(&NestedOption { v: None });
+    let ntarget = atom_by_id(&inst_none, &relation(&inst_none, "v").tuples[0].atoms[1]);
+    assert_eq!(ntarget.r#type, "None");
+}
+
 // ──────────────────────────────────────────────
 // 5. Enum variants
 // ──────────────────────────────────────────────

@@ -197,16 +197,14 @@ fn explicit_root() {
 }
 
 #[test]
-fn nested_option_some_none_is_a_documented_collapse() {
-    // `export` unwraps `Some` and shares one `None` atom, so `Some(None)` and
-    // `None` are identical in the exported graph. Documented limitation (Codex
-    // review on #67): `Some(None)` reconstructs as `None`. The unwrapping is
-    // intentional — it keeps `Some(x)` rendering as `x` in the diagram.
-    let di = export_json_instance(&Some(Option::<i32>::None));
-    let back: Option<Option<i32>> = from_datum(&di).unwrap();
-    assert_eq!(back, None, "Some(None) collapses to None (export-side)");
-
-    // The nested-option cases that DO round-trip cleanly:
-    full_roundtrip(Some(Some(5_i32)));
-    full_roundtrip(Some(Some("x".to_string())));
+fn nested_options_round_trip() {
+    // `export` inserts a `Some` wrapper only around an inner `None`/`Some`, so
+    // `Some(None)` is distinct from `None` and arbitrary nesting is recoverable,
+    // while `Some(non-option)` stays unwrapped. (Was the Codex #67 collapse;
+    // fixed for #68.)
+    full_roundtrip(Some(Option::<i32>::None)); // Some(None) — was the bug
+    full_roundtrip(Option::<i32>::None); // None
+    full_roundtrip(Some(Some(5_i32))); // unwrapped, clean
+    full_roundtrip(Some(Some(Option::<i32>::None))); // Some(Some(None))
+    full_roundtrip(vec![Some(Some(1_i32)), Some(None), None]);
 }
