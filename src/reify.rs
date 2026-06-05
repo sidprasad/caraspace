@@ -16,6 +16,14 @@
 //! index `Some(0)`, not a pointer). True `Rc<RefCell>` pointer cycles are not
 //! representable in the exported form and are out of scope; sharing/aliasing is
 //! not preserved (export duplicates it), which is invisible to `==`/`{:?}`.
+//!
+//! Known limitation — **nested `Option`**: `export` unwraps `Some` (it emits no
+//! wrapper atom) and shares a single `None` atom, so `Some(None)` and `None` are
+//! identical in the exported graph. `from_datum::<Option<Option<T>>>` therefore
+//! reconstructs `Some(None)` as `None`. Plain options and `Some(Some(x))` are
+//! unaffected. This is an export-side collapse — the `Some`-unwrapping is
+//! intentional (it keeps `Some(x)` rendering as `x` in the diagram) — not
+//! something `from_datum` can recover from the datum alone.
 
 use crate::jsondata::{IAtom, ITuple, JsonDataInstance};
 use serde::de::{

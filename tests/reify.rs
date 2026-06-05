@@ -195,3 +195,18 @@ fn explicit_root() {
     let back: Point = caraspace::from_datum_root(&di, "atom0").unwrap();
     assert_eq!(v, back);
 }
+
+#[test]
+fn nested_option_some_none_is_a_documented_collapse() {
+    // `export` unwraps `Some` and shares one `None` atom, so `Some(None)` and
+    // `None` are identical in the exported graph. Documented limitation (Codex
+    // review on #67): `Some(None)` reconstructs as `None`. The unwrapping is
+    // intentional — it keeps `Some(x)` rendering as `x` in the diagram.
+    let di = export_json_instance(&Some(Option::<i32>::None));
+    let back: Option<Option<i32>> = from_datum(&di).unwrap();
+    assert_eq!(back, None, "Some(None) collapses to None (export-side)");
+
+    // The nested-option cases that DO round-trip cleanly:
+    full_roundtrip(Some(Some(5_i32)));
+    full_roundtrip(Some(Some("x".to_string())));
+}
